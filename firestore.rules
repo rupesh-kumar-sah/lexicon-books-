@@ -1,0 +1,128 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // -------------------------------------------------------------------------
+    // Helper Functions
+    // -------------------------------------------------------------------------
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+    
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'admin';
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validations
+    // -------------------------------------------------------------------------
+
+    function isValidBook(data) {
+      return data.title is string && data.title.size() <= 256 &&
+             data.author is string && data.author.size() <= 256 &&
+             data.price is number && data.price >= 0 &&
+             data.isbn is string && data.isbn.size() <= 20 &&
+             data.genre is string && data.genre.size() <= 100 &&
+             data.stock is number && data.stock >= 0;
+    }
+
+    function isFullBook(data) {
+      return data.keys().hasAll(['title', 'author', 'price', 'isbn', 'genre', 'stock']);
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid == request.auth.uid &&
+             data.email == request.auth.token.email &&
+             data.role in ['user', 'admin'];
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['userId', 'items', 'total', 'status', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.items is list && data.items.size() > 0 &&
+             data.total is number && data.total >= 0 &&
+             data.status in ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] &&
+             data.createdAt is int;
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasAll(['bookId', 'userId', 'rating', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.rating is int && data.rating >= 1 && data.rating <= 5 &&
+             data.createdAt is int;
+    }
+
+    // -------------------------------------------------------------------------
+    // Default Deny
+    // -------------------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collections
+    // -------------------------------------------------------------------------
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUserProfile(incoming()) && 
+                    (incoming().role == 'user' || (incoming().role == 'admin' && request.auth.token.email == 'sahkkr702@gmail.com'));
+      allow update: if (isOwner(userId) && incoming().role == existing().role && incoming().uid == existing().uid) || isAdmin();
+      allow delete: if isAdmin();
+
+      match /wishlist/{bookId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    match /books/{bookId} {
+      allow read: if true;
+      allow create: if isAdmin() && isFullBook(incoming()) && isValidBook(incoming());
+      allow update: if isAdmin() && isValidBook(incoming());
+      allow delete: if isAdmin();
+
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isEmailVerified() && isValidReview(incoming());
+        allow update: if isOwner(existing().userId) && isValidReview(incoming()) && incoming().userId == existing().userId;
+        allow delete: if isOwner(existing().userId) || isAdmin();
+      }
+    }
+
+    match /orders/{orderId} {
+      allow get: if isOwner(existing().userId) || isAdmin();
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isEmailVerified() && isValidOrder(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}
