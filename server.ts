@@ -4,8 +4,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
+import { neon } from '@neondatabase/serverless';
 
 dotenv.config();
+
+const sql = process.env.NEON_DATABASE_URL
+  ? neon(process.env.NEON_DATABASE_URL)
+  : null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,7 +34,25 @@ async function startServer() {
 
   // API Routes
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString(), mode: process.env.STRIPE_SECRET_KEY?.startsWith('AIza') ? 'universal-simulation' : 'standard' });
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      mode: process.env.STRIPE_SECRET_KEY?.startsWith('AIza') ? 'universal-simulation' : 'standard',
+      database: sql ? 'neon-configured' : 'not-configured',
+    });
+  });
+
+  app.get('/api/db/health', async (_req, res) => {
+    if (!sql) {
+      return res.status(500).json({ ok: false, error: 'NEON_DATABASE_URL not set' });
+    }
+    try {
+      const rows = await sql`SELECT NOW() as now, current_database() as db, version() as version`;
+      res.json({ ok: true, ...rows[0] });
+    } catch (error: any) {
+      console.error('Neon DB error:', error);
+      res.status(500).json({ ok: false, error: error.message });
+    }
   });
 
   app.post('/api/checkout/create-session', async (req, res) => {
