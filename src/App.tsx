@@ -9,6 +9,7 @@ import Profile from './pages/Profile';
 import Checkout from './pages/Checkout';
 import Admin from './pages/Admin';
 import OrderSuccess from './pages/OrderSuccess';
+import SqlEditor from './pages/SqlEditor';
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="/admin/*" element={<Admin />} />
+          <Route path="/sql" element={<SqlEditor />} />
           <Route path="/order-success" element={<OrderSuccess />} />
         </Routes>
       </Layout>

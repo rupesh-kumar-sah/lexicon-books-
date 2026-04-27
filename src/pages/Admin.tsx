@@ -1,27 +1,12 @@
 import { useState, useEffect } from 'react';
-import {
-  LayoutDashboard,
-  Book as BookIcon,
-  Settings,
-  Plus,
-  Search,
-  MoreVertical,
-  X,
-  Image as ImageIcon,
-  ArrowUp,
-  ArrowDown,
-  ArrowUpDown,
-  ShieldAlert,
-  Loader2,
-  Star as StarIcon,
-} from 'lucide-react';
+import { LayoutDashboard, Book as BookIcon, Settings, Plus, Search, MoveVertical as MoreVertical, X, Image as ImageIcon, ArrowUp, ArrowDown, ArrowUpDown, ShieldAlert, Loader as Loader2, Star as StarIcon, Terminal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { bookApi } from '../lib/api';
 import { cn } from '../lib/utils';
 import { GENRES } from '../constants';
 import { Book } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 export default function Admin() {
   const { isAdmin, loading: authLoading } = useAuth();
@@ -101,7 +86,14 @@ export default function Admin() {
           </nav>
         </div>
 
-        <div className="mt-auto p-8 border-t border-slate-100">
+        <div className="mt-auto p-8 border-t border-slate-100 space-y-2">
+          <Link
+            to="/sql"
+            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-blue-700 transition-colors"
+          >
+            <Terminal className="w-4 h-4" />
+            <span>SQL Editor</span>
+          </Link>
           <button className="w-full flex items-center space-x-3 px-4 py-3 text-sm font-bold text-slate-400 hover:text-blue-700 transition-colors">
             <Settings className="w-4 h-4" />
             <span>Settings</span>

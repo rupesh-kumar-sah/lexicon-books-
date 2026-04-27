@@ -9,6 +9,7 @@ import authRoutes from './server/routes/auth';
 import bookRoutes from './server/routes/books';
 import wishlistRoutes from './server/routes/wishlist';
 import orderRoutes from './server/routes/orders';
+import sqlRoutes from './server/routes/sql';
 import { seedIfEmpty } from './server/seed';
 
 dotenv.config();
@@ -31,6 +32,7 @@ async function startServer() {
   app.use('/api/books', bookRoutes);
   app.use('/api/wishlist', wishlistRoutes);
   app.use('/api/orders', orderRoutes);
+  app.use('/api/sql', sqlRoutes);
 
   // Seed DB on startup if empty (non-blocking)
   seedIfEmpty().catch((e) => console.error('[seed] failed:', e));
