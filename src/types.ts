@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 export interface Book {
   id: string;
   title: string;
@@ -22,22 +17,22 @@ export interface CartItem extends Book {
   quantity: number;
 }
 
-export interface UserProfile {
-  uid: string;
+export interface AuthUser {
+  id: string;
   email: string;
   displayName: string;
-  photoURL: string;
+  photoURL: string | null;
   role: 'admin' | 'user';
-  createdAt: number;
+  createdAt: string;
 }
 
 export interface Order {
   id: string;
-  userId: string;
   items: CartItem[];
+  subtotal: number;
+  shipping: number;
   total: number;
   status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-  stripeSessionId: string;
   createdAt: number;
 }
 

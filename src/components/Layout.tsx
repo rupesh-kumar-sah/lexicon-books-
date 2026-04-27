@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import Navbar from './Navbar';
 import Footer from './Footer';
-import AILibrarian from './AILibrarian';
+import AuthModal from './AuthModal';
 import { motion } from 'motion/react';
 
 interface LayoutProps {
@@ -22,8 +22,8 @@ export default function Layout({ children }: LayoutProps) {
           {children}
         </motion.div>
       </main>
-      <AILibrarian />
       <Footer />
+      <AuthModal />
     </div>
   );
 }

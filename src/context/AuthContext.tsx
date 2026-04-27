@@ -1,106 +1,90 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { 
-  onAuthStateChanged, 
-  signInWithPopup, 
-  signOut as firebaseSignOut, 
-  User 
-} from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { auth, db, googleProvider } from '../lib/firebase';
-import { UserProfile } from '../types';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { authApi, getToken, setToken } from '../lib/api';
+import { AuthUser } from '../types';
 
 interface AuthContextType {
-  user: User | null;
-  profile: UserProfile | null;
+  user: AuthUser | null;
   loading: boolean;
-  signIn: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
+  authModalOpen: boolean;
+  openAuthModal: () => void;
+  closeAuthModal: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        // Sync or Create profile
-        const profileRef = doc(db, 'users', user.uid);
-        const profileSnap = await getDoc(profileRef);
-        
-        if (profileSnap.exists()) {
-          const profileData = profileSnap.data() as UserProfile;
-          // Bootstrap admin sync
-          if (user.email === 'sahkkr702@gmail.com' && profileData.role !== 'admin') {
-            profileData.role = 'admin';
-            await setDoc(profileRef, { role: 'admin' }, { merge: true });
-          }
-          setProfile(profileData);
-        } else {
-          const newProfile: UserProfile = {
-            uid: user.uid,
-            email: user.email || '',
-            displayName: user.displayName || '',
-            photoURL: user.photoURL || '',
-            role: user.email === 'sahkkr702@gmail.com' ? 'admin' : 'user',
-            createdAt: Date.now()
-          };
-          await setDoc(profileRef, newProfile);
-          setProfile(newProfile);
-        }
-      } else {
-        setProfile(null);
+    let cancelled = false;
+    async function init() {
+      const token = getToken();
+      if (!token) {
+        setLoading(false);
+        return;
       }
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
+      try {
+        const { user } = await authApi.me();
+        if (!cancelled) setUser(user);
+      } catch {
+        setToken(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    init();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const signIn = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error: any) {
-      console.error('Sign in error:', error);
-      if (error?.message?.includes('identitytoolkit') && error?.message?.includes('blocked')) {
-        alert('Firebase Identity Toolkit API is blocked. \n\nPlease enable it in your Google Cloud Console:\nhttps://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com?project=' + auth.app.options.projectId);
-      } else {
-        alert('Authentication failed: ' + error.message);
-      }
-    }
-  };
+  const signIn = useCallback(async (email: string, password: string) => {
+    const { token, user } = await authApi.login({ email, password });
+    setToken(token);
+    setUser(user);
+  }, []);
 
-  const signOut = async () => {
+  const signUp = useCallback(async (email: string, password: string, displayName: string) => {
+    const { token, user } = await authApi.signup({ email, password, displayName });
+    setToken(token);
+    setUser(user);
+  }, []);
+
+  const signOut = useCallback(async () => {
     try {
-      await firebaseSignOut(auth);
-    } catch (error) {
-      console.error('Sign out error:', error);
-    }
-  };
+      await authApi.logout();
+    } catch {}
+    setToken(null);
+    setUser(null);
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      profile, 
-      loading, 
-      signIn, 
-      signOut,
-      isAdmin: profile?.role === 'admin'
-    }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        signIn,
+        signUp,
+        signOut,
+        isAdmin: user?.role === 'admin',
+        authModalOpen,
+        openAuthModal: () => setAuthModalOpen(true),
+        closeAuthModal: () => setAuthModalOpen(false),
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
 }

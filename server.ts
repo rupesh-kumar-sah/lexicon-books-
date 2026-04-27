@@ -3,7 +3,13 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
-import Stripe from 'stripe';
+
+import { attachUser } from './server/auth';
+import authRoutes from './server/routes/auth';
+import bookRoutes from './server/routes/books';
+import wishlistRoutes from './server/routes/wishlist';
+import orderRoutes from './server/routes/orders';
+import { seedIfEmpty } from './server/seed';
 
 dotenv.config();
 
@@ -14,70 +20,21 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 5000;
 
-  let stripe: Stripe | null = null;
-  if (process.env.STRIPE_SECRET_KEY) {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (key.startsWith('AIza')) {
-      console.log('✅ Lexiconn Universal Integration Key detected in backend. Entering Simulation Mode.');
-    }
-    stripe = new Stripe(key, {
-      apiVersion: '2023-10-16' as any,
-    });
-  }
+  app.use(express.json({ limit: '1mb' }));
+  app.use(attachUser);
 
-  app.use(express.json());
-
-  // API Routes
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString(), mode: process.env.STRIPE_SECRET_KEY?.startsWith('AIza') ? 'universal-simulation' : 'standard' });
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  app.post('/api/checkout/create-session', async (req, res) => {
-    const isUniversalKey = process.env.STRIPE_SECRET_KEY?.startsWith('AIza');
-    
-    if (isUniversalKey || !process.env.STRIPE_SECRET_KEY) {
-      // Lexiconn Universal Mode: Use the provided key to enable a high-speed simulation flow
-      return res.json({ 
-        id: 'sim_123', 
-        url: `${req.headers.origin}/order-success`,
-        mode: 'universal-simulation',
-        message: 'Transaction authorized via Lexiconn Universal Integration'
-      });
-    }
+  app.use('/api/auth', authRoutes);
+  app.use('/api/books', bookRoutes);
+  app.use('/api/wishlist', wishlistRoutes);
+  app.use('/api/orders', orderRoutes);
 
-    if (!stripe) {
-      return res.status(500).json({ error: 'Stripe is not configured' });
-    }
+  // Seed DB on startup if empty (non-blocking)
+  seedIfEmpty().catch((e) => console.error('[seed] failed:', e));
 
-    try {
-      const { items, successUrl, cancelUrl } = req.body;
-
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: items.map((item: any) => ({
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: item.title,
-              images: [item.image],
-            },
-            unit_amount: Math.round(item.price * 100),
-          },
-          quantity: item.quantity,
-        })),
-        mode: 'payment',
-        success_url: successUrl || `${req.headers.origin}/order-success`,
-        cancel_url: cancelUrl || `${req.headers.origin}/cart`,
-      });
-
-      res.json({ id: session.id, url: session.url });
-    } catch (error: any) {
-      console.error('Stripe error:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -87,7 +44,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
