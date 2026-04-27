@@ -24,6 +24,14 @@ See `.env.example`:
 - `GEMINI_API_KEY` — Google Gemini API key
 - `APP_URL` — Public URL for the app
 - `STRIPE_SECRET_KEY` — Stripe secret key
+- `NEON_DATABASE_URL` — Postgres connection string for the user's own Neon database
+- `NEON_DATA_API_URL` — (optional) Neon Data API base URL
+
+## Database (Neon)
+The app uses a user-owned Neon Postgres database via `@neondatabase/serverless`.
+- Server-side client: `server.ts` initializes `neon(process.env.NEON_DATABASE_URL)`.
+- Frontend-importable helper: `src/lib/neon.ts` exports `sql` (note: only safe to use from server-side or trusted environments — the connection string should never be exposed to the browser).
+- Health check endpoint: `GET /api/db/health` returns `{ now, db, version }`.
 
 ## Deployment
 Configured for **autoscale**:
