@@ -1,4 +1,4 @@
-import type { Book, Review, AuthUser, Order, AdminOrder, AdminStats, GenreInfo, OrderStatus } from '../types';
+import type { Book, Review, AuthUser, Order, AdminOrder, AdminStats, GenreInfo, OrderStatus, AdminUser, SiteSettings } from '../types';
 
 const TOKEN_KEY = 'lexiconn_token';
 
@@ -131,4 +131,24 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     }),
+  deleteOrder: (id: string) =>
+    request<{ ok: true }>(`/api/admin/orders/${id}`, { method: 'DELETE' }),
+
+  // Users
+  users: (search?: string) => {
+    const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+    return request<{ users: AdminUser[] }>(`/api/admin/users${qs}`);
+  },
+  updateUserRole: (id: string, role: 'admin' | 'user') =>
+    request<{ ok: true }>(`/api/admin/users/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
+  deleteUser: (id: string) =>
+    request<{ ok: true }>(`/api/admin/users/${id}`, { method: 'DELETE' }),
+
+  // Site settings / theme
+  getSettings: () => request<{ settings: SiteSettings | null }>(`/api/admin/settings`),
+  saveSettings: (settings: SiteSettings) =>
+    request<{ ok: true }>(`/api/admin/settings`, { method: 'PUT', body: JSON.stringify(settings) }),
 };

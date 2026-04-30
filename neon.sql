@@ -98,6 +98,18 @@ ALTER TABLE orders
     ADD CONSTRAINT orders_status_check
     CHECK (status IN ('pending','processing','shipped','delivered','cancelled'));
 
+-- ---------- site_settings (single-row brand/theme config) ------------
+CREATE TABLE IF NOT EXISTS site_settings (
+    id              TEXT PRIMARY KEY,
+    site_name       TEXT NOT NULL DEFAULT 'Lexiconn Books',
+    tagline         TEXT NOT NULL DEFAULT 'Curated Selections for the Modern Mind.',
+    primary_color   TEXT NOT NULL DEFAULT '#2563eb',
+    accent_color    TEXT NOT NULL DEFAULT '#0f172a',
+    hero_image      TEXT NOT NULL DEFAULT '',
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+INSERT INTO site_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING;
+
 -- =====================================================================
 --  SEED DATA — 12 starter books
 --  Re-runnable thanks to ON CONFLICT (isbn) DO NOTHING.

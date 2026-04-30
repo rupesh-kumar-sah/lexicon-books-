@@ -21,15 +21,16 @@ A curated online bookstore built with Vite + React 19 (frontend) and Express (ba
   - `books.ts` — `GET /api/books` (filters: `q`, `genre`, `featured`, `limit`, `sort` incl. `popular|price-asc|price-desc|rating|newest`), `GET /api/books/genres` (counts per genre), `GET /api/books/:id` (with live `reviewCount`/`avgRating`), admin-only `POST/PATCH/DELETE`. Includes `GET/POST /api/books/:id/reviews` and `DELETE /api/books/:bookId/reviews/:reviewId`.
   - `wishlist.ts` — `GET /api/wishlist`, `POST /api/wishlist/:bookId`, `DELETE /api/wishlist/:bookId`.
   - `orders.ts` — `GET /api/orders`, `GET /api/orders/:id`, `POST /api/orders` (atomic stock decrement inside a transaction), `POST /api/orders/:id/cancel` (restocks items).
-  - `admin.ts` — admin-only `GET /api/admin/stats` (revenue, orders, AOV, top books, low-stock), `GET /api/admin/orders`, `PATCH /api/admin/orders/:id/status` (allowed: `pending|processing|shipped|delivered|cancelled`).
+  - `admin.ts` — admin-only `GET /api/admin/stats`, `GET /api/admin/orders`, `PATCH /api/admin/orders/:id/status`, `DELETE /api/admin/orders/:id`, `GET /api/admin/users`, `PATCH /api/admin/users/:id` (role), `DELETE /api/admin/users/:id`, `PUT /api/admin/settings`, plus a public `GET /api/admin/settings` for the storefront to read brand/theme.
 
 ### Database Schema
-Tables (created via SQL): `users`, `sessions`, `books`, `reviews`, `wishlist_items`, `orders` with appropriate indexes. IDs are random 24-char hex strings (not serial). Order items are stored as JSON snapshots so cancellations and history remain stable when books change.
+Tables (created via SQL): `users`, `sessions`, `books`, `reviews`, `wishlist_items`, `orders`, `site_settings` (single-row brand/theme config) with appropriate indexes. IDs are random 24-char hex strings (not serial). Order items are stored as JSON snapshots so cancellations and history remain stable when books change.
 
 ### Frontend (`src/`)
 - `lib/api.ts` — typed `fetch` wrapper that automatically attaches the bearer token from `localStorage["lexiconn_token"]`. Exports `authApi`, `bookApi`, `wishlistApi`, `orderApi`, `adminApi`.
-- `context/` — provider stack (in `main.tsx`): `Toast > Auth > Wishlist > Cart > RecentlyViewed > App`.
+- `context/` — provider stack (in `main.tsx`): `Toast > SiteSettings > Auth > Wishlist > Cart > RecentlyViewed > App`.
   - `ToastContext.tsx` — global `success/error/info` toasts with auto-dismiss.
+  - `SiteSettingsContext.tsx` — fetches `/api/admin/settings` on mount and applies brand colors as CSS variables (`--brand-primary`, `--brand-accent`); also sets `document.title`. The Themes admin tab calls `refresh()` after save.
   - `AuthContext.tsx` — email/password auth, `openAuthModal()` for the login/signup modal.
   - `CartContext.tsx` — local cart in `localStorage["lexiconn_cart"]` (auto-migrates legacy `lumina_cart`); `addToCart(book, qty)` is stock-capped and emits toasts.
   - `WishlistContext.tsx` — API-backed with optimistic add/remove + rollback; `toggleWishlist(bookId, title?)` shows toast.
@@ -41,10 +42,12 @@ Tables (created via SQL): `users`, `sessions`, `books`, `reviews`, `wishlist_ite
   - `BookDetail` — adds to recently-viewed on load, quantity-aware Add to Cart, wishlist toggle with toast, review submit with toast.
   - `Cart`, `Checkout`, `OrderSuccess`, `Wishlist`, `Profile` (sidebar card, stats grid, order history linking to `/order/:id`).
   - `OrderDetail` (`/order/:id`) — status timeline stepper, cancel button (when allowed), full item/address/payment breakdown.
-  - `Admin` — three tabs:
+  - `Admin` — five tabs:
     - **Dashboard**: stat cards + Recharts revenue area chart + status pie chart + low-stock alert + recent orders.
-    - **Orders**: status filter, search, inline status `<select>`, expandable details.
     - **Inventory**: book CRUD with toasts.
+    - **Orders**: status filter, search, inline status `<select>`, expandable details, delete button.
+    - **Users**: list members with order count and total spend, change role (user ↔ admin), delete user. Self-protected (can't demote or delete yourself).
+    - **Themes**: site name + tagline editor, color presets and custom hex pickers, hero image URL, plus a live preview panel. Saving applies the brand to every visitor through CSS variables.
 
 ## Development
 

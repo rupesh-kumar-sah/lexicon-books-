@@ -75,6 +75,17 @@ const STATEMENTS: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS orders_user_id_idx ON orders (user_id)`,
   `CREATE INDEX IF NOT EXISTS orders_created_at_idx ON orders (created_at DESC)`,
+
+  `CREATE TABLE IF NOT EXISTS site_settings (
+    id TEXT PRIMARY KEY,
+    site_name TEXT NOT NULL DEFAULT 'Lexiconn Books',
+    tagline TEXT NOT NULL DEFAULT 'Curated Selections for the Modern Mind.',
+    primary_color TEXT NOT NULL DEFAULT '#2563eb',
+    accent_color TEXT NOT NULL DEFAULT '#0f172a',
+    hero_image TEXT NOT NULL DEFAULT '',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+  `INSERT INTO site_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING`,
 ];
 
 export async function ensureSchema(): Promise<void> {

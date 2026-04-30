@@ -16,6 +16,7 @@ import { bookApi } from '../lib/api';
 import BookCard from '../components/BookCard';
 import { useAuth } from '../context/AuthContext';
 import { useRecentlyViewed } from '../context/RecentlyViewedContext';
+import { useSiteSettings } from '../context/SiteSettingsContext';
 
 const GENRE_GRADIENTS: Record<string, string> = {
   Fiction: 'from-rose-400 to-rose-600',
@@ -38,6 +39,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const { user, openAuthModal } = useAuth();
   const { recentIds } = useRecentlyViewed();
+  const { settings } = useSiteSettings();
 
   useEffect(() => {
     Promise.all([
@@ -72,14 +74,15 @@ export default function Home() {
             animate={{ opacity: 1, x: 0 }}
             className="lg:col-span-3"
           >
-            <span className="inline-flex items-center gap-2 bg-blue-600 text-[10px] px-3 py-1 rounded-full font-bold uppercase mb-5 text-white tracking-widest">
+            <span
+              className="inline-flex items-center gap-2 text-[10px] px-3 py-1 rounded-full font-bold uppercase mb-5 text-white tracking-widest"
+              style={{ background: 'var(--brand-primary)' }}
+            >
               <Sparkles className="w-3 h-3" />
               Curated Reading
             </span>
             <h1 className="font-sans text-5xl md:text-7xl font-bold tracking-tight text-slate-900 mb-6 leading-[0.95]">
-              Curated <br />
-              <span className="text-blue-700">Selections</span> <br />
-              for the Modern Mind.
+              {settings.tagline}
             </h1>
             <p className="text-lg text-slate-500 mb-10 max-w-xl font-medium">
               Explore our collection of limited editions, technical masterpieces, and modern classics
@@ -88,7 +91,8 @@ export default function Home() {
             <div className="flex flex-wrap gap-4">
               <Link
                 to="/catalog"
-                className="px-8 py-4 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-all active:scale-95"
+                className="px-8 py-4 text-white font-bold rounded-xl shadow-lg hover:opacity-90 transition-all active:scale-95"
+                style={{ background: 'var(--brand-primary)' }}
               >
                 Browse Collection
               </Link>
@@ -97,7 +101,7 @@ export default function Home() {
                   onClick={openAuthModal}
                   className="px-8 py-4 border border-slate-200 bg-white text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all"
                 >
-                  Join Lexicon
+                  Join {settings.siteName.split(' ')[0]}
                 </button>
               )}
             </div>

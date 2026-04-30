@@ -136,4 +136,138 @@ router.patch('/orders/:id/status', requireAdmin, async (req, res) => {
   }
 });
 
+router.delete('/orders/:id', requireAdmin, async (req, res) => {
+  try {
+    const result = await query('DELETE FROM orders WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error('admin delete order error', e);
+    res.status(500).json({ error: 'Failed to delete order' });
+  }
+});
+
+// ---------------------------------------------------------------- USERS
+router.get('/users', requireAdmin, async (req, res) => {
+  try {
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().toLowerCase() : '';
+    const params: any[] = [];
+    let where = '';
+    if (search) {
+      params.push(`%${search}%`);
+      where = `WHERE LOWER(u.email) LIKE $1 OR LOWER(u.display_name) LIKE $1`;
+    }
+    const sql = `
+      SELECT u.id, u.email, u.display_name, u.role, u.created_at,
+             COALESCE(o.cnt, 0)::int  AS order_count,
+             COALESCE(o.spent, 0)     AS total_spent
+      FROM users u
+      LEFT JOIN (
+        SELECT user_id, COUNT(*) AS cnt, SUM(total) AS spent
+        FROM orders
+        WHERE status <> 'cancelled' AND user_id IS NOT NULL
+        GROUP BY user_id
+      ) o ON o.user_id = u.id
+      ${where}
+      ORDER BY u.created_at DESC
+      LIMIT 500
+    `;
+    const result = await query<any>(sql, params);
+    res.json({
+      users: result.rows.map((r) => ({
+        id: r.id,
+        email: r.email,
+        displayName: r.display_name,
+        role: r.role,
+        createdAt: new Date(r.created_at).getTime(),
+        orderCount: Number(r.order_count),
+        totalSpent: Number(r.total_spent),
+      })),
+    });
+  } catch (e: any) {
+    console.error('admin list users error', e);
+    res.status(500).json({ error: 'Failed to load users' });
+  }
+});
+
+router.patch('/users/:id', requireAdmin, async (req: any, res) => {
+  try {
+    const { role } = req.body || {};
+    if (role !== 'user' && role !== 'admin') {
+      return res.status(400).json({ error: 'Role must be "user" or "admin"' });
+    }
+    if (req.params.id === req.user?.id && role !== 'admin') {
+      return res.status(400).json({ error: 'You cannot demote yourself' });
+    }
+    const result = await query(
+      'UPDATE users SET role = $1 WHERE id = $2 RETURNING id, role',
+      [role, req.params.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ ok: true, user: result.rows[0] });
+  } catch (e: any) {
+    console.error('admin update user role error', e);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+router.delete('/users/:id', requireAdmin, async (req: any, res) => {
+  try {
+    if (req.params.id === req.user?.id) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+    const result = await query('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error('admin delete user error', e);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// ----------------------------------------------------- SITE SETTINGS / THEME
+// GET is intentionally public so the storefront can read brand/theme.
+router.get('/settings', async (_req, res) => {
+  try {
+    const result = await query<any>(`SELECT * FROM site_settings WHERE id = 'default'`);
+    const r = result.rows[0];
+    if (!r) return res.json({ settings: null });
+    res.json({
+      settings: {
+        siteName: r.site_name,
+        tagline: r.tagline,
+        primaryColor: r.primary_color,
+        accentColor: r.accent_color,
+        heroImage: r.hero_image,
+        updatedAt: new Date(r.updated_at).getTime(),
+      },
+    });
+  } catch (e: any) {
+    console.error('admin get settings error', e);
+    res.status(500).json({ error: 'Failed to load settings' });
+  }
+});
+
+router.put('/settings', requireAdmin, async (req, res) => {
+  try {
+    const { siteName, tagline, primaryColor, accentColor, heroImage } = req.body || {};
+    const isHex = (s: any) => typeof s === 'string' && /^#[0-9a-fA-F]{6}$/.test(s);
+    if (!siteName || !tagline) return res.status(400).json({ error: 'Site name and tagline are required' });
+    if (!isHex(primaryColor) || !isHex(accentColor)) {
+      return res.status(400).json({ error: 'Colors must be hex like #2563eb' });
+    }
+    await query(
+      `UPDATE site_settings
+       SET site_name = $1, tagline = $2, primary_color = $3, accent_color = $4,
+           hero_image = $5, updated_at = NOW()
+       WHERE id = 'default'`,
+      [siteName, tagline, primaryColor, accentColor, heroImage || '']
+    );
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error('admin save settings error', e);
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
 export default router;

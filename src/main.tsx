@@ -7,19 +7,22 @@ import { AuthProvider } from './context/AuthContext.tsx';
 import { WishlistProvider } from './context/WishlistContext.tsx';
 import { ToastProvider } from './context/ToastContext.tsx';
 import { RecentlyViewedProvider } from './context/RecentlyViewedContext.tsx';
+import { SiteSettingsProvider } from './context/SiteSettingsContext.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ToastProvider>
-      <AuthProvider>
-        <WishlistProvider>
-          <CartProvider>
-            <RecentlyViewedProvider>
-              <App />
-            </RecentlyViewedProvider>
-          </CartProvider>
-        </WishlistProvider>
-      </AuthProvider>
+      <SiteSettingsProvider>
+        <AuthProvider>
+          <WishlistProvider>
+            <CartProvider>
+              <RecentlyViewedProvider>
+                <App />
+              </RecentlyViewedProvider>
+            </CartProvider>
+          </WishlistProvider>
+        </AuthProvider>
+      </SiteSettingsProvider>
     </ToastProvider>
   </StrictMode>
 );

@@ -21,6 +21,11 @@ import {
   DollarSign,
   Package,
   AlertTriangle,
+  Trash2,
+  Palette,
+  Save,
+  ShieldCheck,
+  Mail,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -39,12 +44,13 @@ import {
 import { adminApi, bookApi } from '../lib/api';
 import { cn } from '../lib/utils';
 import { GENRES } from '../constants';
-import { AdminOrder, AdminStats, Book, OrderStatus } from '../types';
+import { AdminOrder, AdminStats, AdminUser, Book, OrderStatus, SiteSettings } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { useSiteSettings } from '../context/SiteSettingsContext';
 import { useNavigate, Link } from 'react-router-dom';
 
-type Tab = 'dashboard' | 'inventory' | 'orders';
+type Tab = 'dashboard' | 'inventory' | 'orders' | 'users' | 'themes';
 
 export default function Admin() {
   const { isAdmin, loading: authLoading } = useAuth();
@@ -103,6 +109,8 @@ export default function Admin() {
     dashboard: 'Analytics',
     inventory: 'Inventory',
     orders: 'Orders',
+    users: 'Users',
+    themes: 'Themes',
   };
 
   return (
@@ -115,6 +123,8 @@ export default function Admin() {
               { id: 'dashboard' as Tab, icon: LayoutDashboard, label: 'Analytics' },
               { id: 'inventory' as Tab, icon: BookIcon, label: 'Inventory' },
               { id: 'orders' as Tab, icon: ShoppingBag, label: 'Orders' },
+              { id: 'users' as Tab, icon: UsersIcon, label: 'Users' },
+              { id: 'themes' as Tab, icon: Palette, label: 'Themes' },
             ].map((item) => (
               <button
                 key={item.id}
@@ -172,6 +182,8 @@ export default function Admin() {
         {activeTab === 'dashboard' && <DashboardView />}
         {activeTab === 'inventory' && <InventoryView key={refreshKey} onEdit={openEdit} />}
         {activeTab === 'orders' && <OrdersView />}
+        {activeTab === 'users' && <UsersView />}
+        {activeTab === 'themes' && <ThemesView />}
 
         <AnimatePresence>
           {modalMode && (
@@ -441,6 +453,20 @@ function OrdersView() {
     }
   };
 
+  const removeOrder = async (id: string) => {
+    if (!confirm('Permanently delete this order? This cannot be undone.')) return;
+    setUpdating(id);
+    try {
+      await adminApi.deleteOrder(id);
+      setOrders((prev) => prev.filter((o) => o.id !== id));
+      toast.success('Order deleted');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to delete');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const statusOptions: (OrderStatus | 'all')[] = ['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'];
 
   return (
@@ -521,6 +547,14 @@ function OrdersView() {
                       className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:bg-blue-50 rounded-lg"
                     >
                       {expanded === o.id ? 'Hide' : 'Items'}
+                    </button>
+                    <button
+                      onClick={() => removeOrder(o.id)}
+                      disabled={updating === o.id}
+                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg disabled:opacity-50"
+                      title="Delete order"
+                    >
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -761,6 +795,7 @@ function Field({
   min,
   max,
   step,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -770,6 +805,7 @@ function Field({
   min?: string | number;
   max?: string | number;
   step?: string | number;
+  placeholder?: string;
 }) {
   return (
     <div className="space-y-1.5">
@@ -781,6 +817,7 @@ function Field({
         min={min}
         max={max}
         step={step}
+        placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
         className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-medium"
       />
@@ -986,5 +1023,377 @@ function Th({ children, onClick }: { children: React.ReactNode; onClick?: () => 
     >
       <div className="flex items-center">{children}</div>
     </th>
+  );
+}
+
+// ============================================================ USERS VIEW
+function UsersView() {
+  const toast = useToast();
+  const { user: currentUser } = useAuth();
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  const reload = () => {
+    setLoading(true);
+    adminApi
+      .users(search || undefined)
+      .then(({ users }) => setUsers(users))
+      .catch((e) => toast.error(e.message || 'Failed to load users'))
+      .finally(() => setLoading(false));
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(reload, [search]);
+
+  const changeRole = async (u: AdminUser, role: 'admin' | 'user') => {
+    setBusy(u.id);
+    try {
+      await adminApi.updateUserRole(u.id, role);
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role } : x)));
+      toast.success(`${u.email} is now ${role}`);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to update role');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const removeUser = async (u: AdminUser) => {
+    if (!confirm(`Permanently delete ${u.email}? Their orders will remain but become unattached.`)) return;
+    setBusy(u.id);
+    try {
+      await adminApi.deleteUser(u.id);
+      setUsers((prev) => prev.filter((x) => x.id !== u.id));
+      toast.success('User deleted');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to delete user');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const adminCount = users.filter((u) => u.role === 'admin').length;
+  const customerCount = users.length - adminCount;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <StatPill label="Total Members" value={users.length} icon={UsersIcon} tone="blue" />
+        <StatPill label="Administrators" value={adminCount} icon={ShieldCheck} tone="violet" />
+        <StatPill label="Customers" value={customerCount} icon={Mail} tone="emerald" />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search by email or name..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 outline-none"
+          />
+          <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-3">
+            <Loader2 className="w-6 h-6 animate-spin" />
+            Loading users...
+          </div>
+        ) : users.length === 0 ? (
+          <div className="p-16 text-center text-slate-400 font-medium italic">No users found.</div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {users.map((u) => {
+              const isSelf = currentUser?.id === u.id;
+              const initials = (u.displayName || u.email).slice(0, 2).toUpperCase();
+              return (
+                <div key={u.id} className="p-5 flex items-center gap-4 flex-wrap">
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                    {initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-slate-900 truncate">{u.displayName || '—'}</p>
+                      {u.role === 'admin' && (
+                        <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-violet-100 text-violet-700 border border-violet-200 flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3" /> Admin
+                        </span>
+                      )}
+                      {isSelf && (
+                        <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">
+                          You
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 truncate">
+                      {u.email} · joined {new Date(u.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="text-right hidden md:block">
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Spend</p>
+                    <p className="text-sm font-bold text-slate-900">
+                      ${u.totalSpent.toFixed(2)} <span className="text-slate-400 font-medium">· {u.orderCount} orders</span>
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={u.role}
+                      disabled={busy === u.id || isSelf}
+                      onChange={(e) => changeRole(u, e.target.value as 'admin' | 'user')}
+                      className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer focus:ring-2 focus:ring-blue-500/30 outline-none disabled:opacity-50"
+                    >
+                      <option value="user">user</option>
+                      <option value="admin">admin</option>
+                    </select>
+                    <button
+                      onClick={() => removeUser(u)}
+                      disabled={busy === u.id || isSelf}
+                      title={isSelf ? "You can't delete yourself" : 'Delete user'}
+                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatPill({
+  label,
+  value,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: number;
+  icon: any;
+  tone: 'blue' | 'violet' | 'emerald';
+}) {
+  const toneCls = {
+    blue: 'bg-blue-50 text-blue-600',
+    violet: 'bg-violet-50 text-violet-600',
+    emerald: 'bg-emerald-50 text-emerald-600',
+  }[tone];
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex items-center gap-4">
+      <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', toneCls)}>
+        <Icon className="w-5 h-5" />
+      </div>
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</p>
+        <p className="text-2xl font-bold text-slate-900 leading-tight">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================== THEMES VIEW
+function ThemesView() {
+  const toast = useToast();
+  const { settings, refresh } = useSiteSettings();
+  const [form, setForm] = useState<SiteSettings>(settings);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => setForm(settings), [settings]);
+
+  const presets: { name: string; primary: string; accent: string }[] = [
+    { name: 'Cobalt', primary: '#2563eb', accent: '#0f172a' },
+    { name: 'Emerald', primary: '#059669', accent: '#064e3b' },
+    { name: 'Sunset', primary: '#ea580c', accent: '#7c2d12' },
+    { name: 'Plum', primary: '#7c3aed', accent: '#3b0764' },
+    { name: 'Rose', primary: '#e11d48', accent: '#4c0519' },
+    { name: 'Ink', primary: '#0f172a', accent: '#1e293b' },
+  ];
+
+  const update = <K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) =>
+    setForm((f) => ({ ...f, [key]: value }));
+
+  const applyPreset = (p: { primary: string; accent: string }) =>
+    setForm((f) => ({ ...f, primaryColor: p.primary, accentColor: p.accent }));
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await adminApi.saveSettings(form);
+      await refresh();
+      toast.success('Theme saved — site updated');
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="grid lg:grid-cols-[1fr,420px] gap-6">
+      {/* Editor */}
+      <div className="space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-6">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Branding</p>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Field label="Site Name" value={form.siteName} onChange={(v) => update('siteName', v)} />
+              <Field label="Tagline" value={form.tagline} onChange={(v) => update('tagline', v)} />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Color Presets</p>
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+              {presets.map((p) => {
+                const isActive = form.primaryColor.toLowerCase() === p.primary.toLowerCase();
+                return (
+                  <button
+                    key={p.name}
+                    onClick={() => applyPreset(p)}
+                    className={cn(
+                      'group relative rounded-xl p-3 border transition-all text-left',
+                      isActive
+                        ? 'border-slate-900 ring-2 ring-slate-900/10 shadow-md'
+                        : 'border-slate-200 hover:border-slate-300'
+                    )}
+                  >
+                    <div className="flex gap-1 mb-2">
+                      <span className="w-6 h-6 rounded-md" style={{ background: p.primary }} />
+                      <span className="w-6 h-6 rounded-md" style={{ background: p.accent }} />
+                    </div>
+                    <p className="text-xs font-bold text-slate-700">{p.name}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Custom Colors</p>
+            <div className="grid md:grid-cols-2 gap-4">
+              <ColorField label="Primary" value={form.primaryColor} onChange={(v) => update('primaryColor', v)} />
+              <ColorField label="Accent" value={form.accentColor} onChange={(v) => update('accentColor', v)} />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Hero Image (optional URL)</p>
+            <Field
+              label="Hero Image URL"
+              value={form.heroImage}
+              onChange={(v) => update('heroImage', v)}
+              placeholder="https://..."
+            />
+          </div>
+
+          <div className="pt-2 flex justify-end">
+            <button
+              onClick={save}
+              disabled={saving}
+              className="flex items-center gap-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-blue-600 transition-all shadow-lg active:scale-95 disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              <span>Save Theme</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Live Preview */}
+      <div className="space-y-4">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Live Preview</p>
+        <div className="rounded-2xl border border-slate-200 shadow-sm overflow-hidden bg-white">
+          <div className="h-12 border-b border-slate-200 flex items-center px-5">
+            <span className="text-sm font-bold tracking-tighter uppercase" style={{ color: form.primaryColor }}>
+              {(form.siteName.split(' ')[0] || form.siteName).toUpperCase()}
+              <span className="text-slate-400 font-light">{form.siteName.slice((form.siteName.split(' ')[0] || '').length).trim() && ' ' + form.siteName.slice((form.siteName.split(' ')[0] || '').length).trim().toUpperCase()}</span>
+            </span>
+          </div>
+          <div
+            className="p-8"
+            style={{
+              background: `linear-gradient(135deg, ${form.primaryColor}10, ${form.accentColor}05)`,
+            }}
+          >
+            <p
+              className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded inline-block mb-4"
+              style={{ background: `${form.primaryColor}20`, color: form.primaryColor }}
+            >
+              Curated Reading
+            </p>
+            <h2
+              className="text-3xl font-bold leading-tight tracking-tight mb-2"
+              style={{ color: form.accentColor }}
+            >
+              {form.siteName}
+            </h2>
+            <p className="text-sm text-slate-500 mb-6">{form.tagline}</p>
+            <div className="flex gap-2">
+              <button
+                className="px-4 py-2 rounded-lg text-xs font-bold text-white shadow"
+                style={{ background: form.primaryColor }}
+              >
+                Browse
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg text-xs font-bold border bg-white"
+                style={{ borderColor: form.accentColor, color: form.accentColor }}
+              >
+                Sign Up
+              </button>
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Saving applies your theme to every visitor. The navbar logo, hero, and primary buttons read from these
+          colors.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+        {label}
+      </label>
+      <div className="flex items-center gap-3">
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-14 h-12 rounded-lg border border-slate-200 cursor-pointer bg-white"
+        />
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="#2563eb"
+          className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-blue-500/30 outline-none"
+        />
+      </div>
+    </div>
   );
 }

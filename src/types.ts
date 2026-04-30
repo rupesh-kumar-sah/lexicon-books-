@@ -90,3 +90,22 @@ export interface GenreInfo {
   name: string;
   count: number;
 }
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  displayName: string;
+  role: 'admin' | 'user';
+  createdAt: number;
+  orderCount: number;
+  totalSpent: number;
+}
+
+export interface SiteSettings {
+  siteName: string;
+  tagline: string;
+  primaryColor: string;
+  accentColor: string;
+  heroImage: string;
+  updatedAt?: number;
+}

@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useSiteSettings } from '../context/SiteSettingsContext';
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -11,6 +12,9 @@ export default function Navbar() {
   const navigate = useNavigate();
   const { itemCount } = useCart();
   const { user, signOut, openAuthModal, isAdmin } = useAuth();
+  const { settings } = useSiteSettings();
+  const brandPrimary = settings.siteName.split(' ')[0] || settings.siteName;
+  const brandSuffix = settings.siteName.slice(brandPrimary.length).trim();
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,8 +27,12 @@ export default function Navbar() {
       <div className="flex justify-between items-center w-full">
         <div className="flex items-center gap-8">
           <Link to="/" className="flex items-center gap-1 group">
-            <div className="text-xl md:text-2xl font-bold tracking-tighter text-blue-700">
-              LEXICONN<span className="text-slate-400 font-light">BOOKS</span>
+            <div
+              className="text-xl md:text-2xl font-bold tracking-tighter uppercase"
+              style={{ color: 'var(--brand-primary)' }}
+            >
+              {brandPrimary}
+              {brandSuffix && <span className="text-slate-400 font-light">{brandSuffix}</span>}
             </div>
           </Link>
 
