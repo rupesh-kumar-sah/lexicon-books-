@@ -10,89 +10,82 @@ import {
   Tag,
   ArrowUpDown,
 } from 'lucide-react';
-import { GENRES } from '../constants';
 import { motion, AnimatePresence } from 'motion/react';
-import { Book } from '../types';
-import { bookApi } from '../lib/api';
+import { Book, GenreInfo } from '../types';
+import { bookApi, BookSort } from '../lib/api';
 import { cn } from '../lib/utils';
 import BookCard from '../components/BookCard';
 
 const ITEMS_PER_PAGE = 8;
 
-type SortOption = 'newest' | 'price-low' | 'price-high' | 'title' | 'rating';
-
 export default function Catalog() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialSearch = searchParams.get('q') || '';
+  const initialGenre = searchParams.get('genre') || '';
+  const initialSort = (searchParams.get('sort') as BookSort) || 'newest';
 
-  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-  const [selectedAuthors, setSelectedAuthors] = useState<string[]>([]);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>(initialGenre ? [initialGenre] : []);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000]);
-  const [yearRange, setYearRange] = useState<[number, number]>([1, new Date().getFullYear()]);
+  const [searchInput, setSearchInput] = useState(initialSearch);
   const [searchTerm, setSearchTerm] = useState(initialSearch);
-  const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [sortBy, setSortBy] = useState<BookSort>(initialSort);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [books, setBooks] = useState<Book[]>([]);
+  const [allGenres, setAllGenres] = useState<GenreInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
 
-  const authors = useMemo(() => Array.from(new Set(books.map((b) => b.author))).sort(), [books]);
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setSearchTerm(searchInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
+  // Reflect search/sort in the URL
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (searchTerm) next.set('q', searchTerm);
+    else next.delete('q');
+    if (sortBy !== 'newest') next.set('sort', sortBy);
+    else next.delete('sort');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, sortBy]);
+
+  // Server-side fetch when search/sort/genre filter changes
   useEffect(() => {
     setLoading(true);
+    setCurrentPage(1);
     bookApi
-      .list({ limit: 200 })
+      .list({
+        search: searchTerm || undefined,
+        sort: sortBy,
+        genre: selectedGenres.length === 1 ? selectedGenres[0] : undefined,
+        limit: 200,
+      })
       .then(({ books }) => setBooks(books))
       .catch((e) => console.error('catalog load', e))
       .finally(() => setLoading(false));
-  }, []);
+  }, [searchTerm, sortBy, selectedGenres]);
 
   useEffect(() => {
-    setSearchTerm(initialSearch);
-  }, [initialSearch]);
+    bookApi.genres().then(({ genres }) => setAllGenres(genres)).catch(() => {});
+  }, []);
 
-  const filteredAndSortedBooks = useMemo(() => {
-    let result = [...books];
-
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      result = result.filter(
-        (book) =>
-          book.title.toLowerCase().includes(term) ||
-          book.author.toLowerCase().includes(term) ||
-          book.isbn.toLowerCase().includes(term)
-      );
+  // Client-side filtering for additional facets (price, multi-genre)
+  const filteredBooks = useMemo(() => {
+    let result = books;
+    if (selectedGenres.length > 1) {
+      result = result.filter((b) => selectedGenres.includes(b.genre));
     }
-    if (selectedGenres.length > 0) result = result.filter((b) => selectedGenres.includes(b.genre));
-    if (selectedAuthors.length > 0) result = result.filter((b) => selectedAuthors.includes(b.author));
-    result = result.filter((b) => b.price >= priceRange[0] && b.price <= priceRange[1]);
-    result = result.filter((b) => {
-      const year = b.year || 2024;
-      return year >= yearRange[0] && year <= yearRange[1];
-    });
-
-    result.sort((a, b) => {
-      switch (sortBy) {
-        case 'price-low':
-          return a.price - b.price;
-        case 'price-high':
-          return b.price - a.price;
-        case 'title':
-          return a.title.localeCompare(b.title);
-        case 'rating':
-          return b.rating - a.rating;
-        case 'newest':
-          return (b.year || 0) - (a.year || 0);
-        default:
-          return 0;
-      }
-    });
-
+    if (priceRange[0] > 0 || priceRange[1] < 1000) {
+      result = result.filter((b) => b.price >= priceRange[0] && b.price <= priceRange[1]);
+    }
     return result;
-  }, [books, searchTerm, selectedGenres, selectedAuthors, priceRange, yearRange, sortBy]);
+  }, [books, selectedGenres, priceRange]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredAndSortedBooks.length / ITEMS_PER_PAGE));
-  const paginatedBooks = filteredAndSortedBooks.slice(
+  const totalPages = Math.max(1, Math.ceil(filteredBooks.length / ITEMS_PER_PAGE));
+  const paginatedBooks = filteredBooks.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
@@ -105,17 +98,11 @@ export default function Catalog() {
   };
 
   const filtersActive =
-    selectedGenres.length > 0 ||
-    selectedAuthors.length > 0 ||
-    priceRange[0] > 0 ||
-    priceRange[1] < 1000 ||
-    yearRange[0] > 1;
+    selectedGenres.length > 0 || priceRange[0] > 0 || priceRange[1] < 1000;
 
   const resetAll = () => {
     setSelectedGenres([]);
-    setSelectedAuthors([]);
     setPriceRange([0, 1000]);
-    setYearRange([1, new Date().getFullYear()]);
   };
 
   return (
@@ -126,26 +113,32 @@ export default function Catalog() {
             <input
               type="text"
               placeholder="Search by title, author, or ISBN..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full pl-12 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
             />
             <Search className="absolute left-4 top-3.5 w-5 h-5 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
+            {searchInput && (
+              <button
+                onClick={() => setSearchInput('')}
+                className="absolute right-3 top-2.5 p-1.5 rounded-lg text-slate-400 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="relative flex-1 md:flex-none min-w-[160px]">
+            <div className="relative flex-1 md:flex-none min-w-[180px]">
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                onChange={(e) => setSortBy(e.target.value as BookSort)}
                 className="w-full pl-10 pr-8 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold appearance-none cursor-pointer focus:ring-2 focus:ring-blue-500/20 outline-none"
               >
                 <option value="newest">Latest Release</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
+                <option value="popular">Reader Favorites</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
                 <option value="title">Alphabetical</option>
                 <option value="rating">Top Rated</option>
               </select>
@@ -164,9 +157,9 @@ export default function Catalog() {
             >
               <Filter className="w-4 h-4" />
               <span>Filters</span>
-              {selectedGenres.length + selectedAuthors.length > 0 && (
+              {selectedGenres.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center border-2 border-white">
-                  {selectedGenres.length + selectedAuthors.length}
+                  {selectedGenres.length}
                 </span>
               )}
             </button>
@@ -176,11 +169,11 @@ export default function Catalog() {
 
       <div className="flex max-w-7xl mx-auto w-full flex-1">
         <main className="flex-1 p-8">
-          <div className="flex justify-between items-center mb-10">
+          <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
             <div className="space-y-1">
               <h2 className="text-3xl font-bold text-slate-900 tracking-tight">The Library</h2>
               <p className="text-slate-400 text-sm font-medium">
-                Discover {filteredAndSortedBooks.length} titles curated for your collection.
+                Discover {filteredBooks.length} {filteredBooks.length === 1 ? 'title' : 'titles'} curated for your collection.
               </p>
             </div>
             {filtersActive && (
@@ -192,6 +185,21 @@ export default function Catalog() {
               </button>
             )}
           </div>
+
+          {selectedGenres.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-8">
+              {selectedGenres.map((g) => (
+                <button
+                  key={g}
+                  onClick={() => toggleGenre(g)}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-full hover:bg-rose-600 transition-colors"
+                >
+                  {g}
+                  <X className="w-3 h-3" />
+                </button>
+              ))}
+            </div>
+          )}
 
           <AnimatePresence mode="wait">
             {loading ? (
@@ -260,7 +268,7 @@ export default function Catalog() {
                 </p>
                 <button
                   onClick={() => {
-                    setSearchTerm('');
+                    setSearchInput('');
                     resetAll();
                   }}
                   className="mt-8 text-blue-600 font-bold text-sm hover:underline"
@@ -308,54 +316,29 @@ export default function Catalog() {
               <div className="flex-1 overflow-y-auto p-8 space-y-10">
                 <section>
                   <header className="flex justify-between items-center mb-6">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Select Genres</h4>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Genres</h4>
                     <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
                       {selectedGenres.length} selected
                     </span>
                   </header>
                   <div className="grid grid-cols-2 gap-3">
-                    {GENRES.map((genre) => (
+                    {allGenres.map((g) => (
                       <button
-                        key={genre}
-                        onClick={() => toggleGenre(genre)}
+                        key={g.name}
+                        onClick={() => toggleGenre(g.name)}
                         className={cn(
                           'px-4 py-3 rounded-xl border text-xs font-bold transition-all text-left flex items-center justify-between',
-                          selectedGenres.includes(genre)
+                          selectedGenres.includes(g.name)
                             ? 'bg-slate-900 text-white border-slate-900 shadow-lg shadow-slate-900/10'
                             : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                         )}
                       >
-                        {genre}
-                        {selectedGenres.includes(genre) && <Tag className="w-3 h-3 text-blue-400 fill-current" />}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-
-                <section>
-                  <header className="flex justify-between items-center mb-6">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Authors</h4>
-                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                      {selectedAuthors.length} selected
-                    </span>
-                  </header>
-                  <div className="flex flex-wrap gap-2">
-                    {authors.slice(0, 18).map((author) => (
-                      <button
-                        key={author}
-                        onClick={() =>
-                          setSelectedAuthors((prev) =>
-                            prev.includes(author) ? prev.filter((a) => a !== author) : [...prev, author]
-                          )
-                        }
-                        className={cn(
-                          'px-3 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-wider transition-all',
-                          selectedAuthors.includes(author)
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-md'
-                            : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'
+                        <span>{g.name}</span>
+                        {selectedGenres.includes(g.name) ? (
+                          <Tag className="w-3 h-3 text-blue-400 fill-current" />
+                        ) : (
+                          <span className="text-[10px] text-slate-400">{g.count}</span>
                         )}
-                      >
-                        {author}
                       </button>
                     ))}
                   </div>

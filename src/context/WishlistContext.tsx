@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { wishlistApi } from '../lib/api';
 import { useAuth } from './AuthContext';
+import { useToast } from './ToastContext';
 
 interface WishlistContextType {
   wishlist: string[];
-  toggleWishlist: (bookId: string) => Promise<void>;
+  toggleWishlist: (bookId: string, title?: string) => Promise<void>;
   isInWishlist: (bookId: string) => boolean;
 }
 
@@ -12,6 +13,7 @@ const WishlistContext = createContext<WishlistContextType | undefined>(undefined
 
 export function WishlistProvider({ children }: { children: ReactNode }) {
   const { user, openAuthModal } = useAuth();
+  const toast = useToast();
   const [wishlist, setWishlist] = useState<string[]>([]);
 
   useEffect(() => {
@@ -32,8 +34,9 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const toggleWishlist = useCallback(
-    async (bookId: string) => {
+    async (bookId: string, title?: string) => {
       if (!user) {
+        toast.info('Sign in to save books to your wishlist');
         openAuthModal();
         return;
       }
@@ -41,15 +44,20 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
       // Optimistic update
       setWishlist((prev) => (inList ? prev.filter((id) => id !== bookId) : [...prev, bookId]));
       try {
-        if (inList) await wishlistApi.remove(bookId);
-        else await wishlistApi.add(bookId);
-      } catch (e) {
+        if (inList) {
+          await wishlistApi.remove(bookId);
+          toast.info(title ? `Removed "${title}" from wishlist` : 'Removed from wishlist');
+        } else {
+          await wishlistApi.add(bookId);
+          toast.success(title ? `Saved "${title}" to wishlist` : 'Saved to wishlist');
+        }
+      } catch (e: any) {
         // Roll back on failure
         setWishlist((prev) => (inList ? [...prev, bookId] : prev.filter((id) => id !== bookId)));
-        console.error('wishlist toggle failed', e);
+        toast.error(e?.message || 'Could not update wishlist');
       }
     },
-    [user, wishlist, openAuthModal]
+    [user, wishlist, openAuthModal, toast]
   );
 
   const isInWishlist = (bookId: string) => wishlist.includes(bookId);

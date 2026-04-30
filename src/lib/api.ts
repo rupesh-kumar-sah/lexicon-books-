@@ -1,4 +1,4 @@
-import type { Book, Review, AuthUser, Order } from '../types';
+import type { Book, Review, AuthUser, Order, AdminOrder, AdminStats, GenreInfo, OrderStatus } from '../types';
 
 const TOKEN_KEY = 'lexiconn_token';
 
@@ -52,17 +52,21 @@ export const authApi = {
 };
 
 // Books
+export type BookSort = 'newest' | 'oldest' | 'price-asc' | 'price-desc' | 'title' | 'rating' | 'popular';
+
 export const bookApi = {
-  list: (params: { featured?: boolean; search?: string; genre?: string; limit?: number } = {}) => {
+  list: (params: { featured?: boolean; search?: string; genre?: string; limit?: number; sort?: BookSort } = {}) => {
     const q = new URLSearchParams();
     if (params.featured) q.set('featured', 'true');
     if (params.search) q.set('search', params.search);
     if (params.genre) q.set('genre', params.genre);
     if (params.limit) q.set('limit', String(params.limit));
+    if (params.sort) q.set('sort', params.sort);
     const qs = q.toString();
     return request<{ books: Book[] }>(`/api/books${qs ? '?' + qs : ''}`);
   },
   get: (id: string) => request<{ book: Book }>(`/api/books/${id}`),
+  genres: () => request<{ genres: GenreInfo[] }>('/api/books/genres'),
   create: (book: Partial<Book>) =>
     request<{ book: Book }>('/api/books', { method: 'POST', body: JSON.stringify(book) }),
   update: (id: string, book: Partial<Book>) =>
@@ -74,6 +78,8 @@ export const bookApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  removeReview: (bookId: string, reviewId: string) =>
+    request<{ ok: true }>(`/api/books/${bookId}/reviews/${reviewId}`, { method: 'DELETE' }),
 };
 
 // Wishlist
@@ -105,4 +111,24 @@ export const orderApi = {
       { method: 'POST', body: JSON.stringify(input) }
     ),
   mine: () => request<{ orders: Order[] }>('/api/orders/mine'),
+  get: (id: string) => request<{ order: Order }>(`/api/orders/${id}`),
+  cancel: (id: string) => request<{ ok: true }>(`/api/orders/${id}/cancel`, { method: 'POST' }),
+};
+
+// Admin
+export const adminApi = {
+  stats: () => request<AdminStats>('/api/admin/stats'),
+  orders: (params: { status?: OrderStatus; search?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams();
+    if (params.status) q.set('status', params.status);
+    if (params.search) q.set('search', params.search);
+    if (params.limit) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return request<{ orders: AdminOrder[] }>(`/api/admin/orders${qs ? '?' + qs : ''}`);
+  },
+  updateOrderStatus: (id: string, status: OrderStatus) =>
+    request<{ ok: true }>(`/api/admin/orders/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
 };

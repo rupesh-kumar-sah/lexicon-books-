@@ -9,6 +9,7 @@ import Profile from './pages/Profile';
 import Checkout from './pages/Checkout';
 import Admin from './pages/Admin';
 import OrderSuccess from './pages/OrderSuccess';
+import OrderDetail from './pages/OrderDetail';
 import SqlEditor from './pages/SqlEditor';
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/admin/*" element={<Admin />} />
           <Route path="/sql" element={<SqlEditor />} />
           <Route path="/order-success" element={<OrderSuccess />} />
+          <Route path="/order/:id" element={<OrderDetail />} />
         </Routes>
       </Layout>
     </Router>

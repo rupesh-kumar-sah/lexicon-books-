@@ -20,12 +20,15 @@ import { bookApi } from '../lib/api';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useRecentlyViewed } from '../context/RecentlyViewedContext';
+import { useToast } from '../context/ToastContext';
 import { cn } from '../lib/utils';
 
 export default function BookDetail() {
   const { id } = useParams();
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
+  const { addRecent } = useRecentlyViewed();
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<'desc' | 'specs' | 'reviews'>('desc');
   const [book, setBook] = useState<Book | null>(null);
@@ -40,6 +43,7 @@ export default function BookDetail() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
+    addRecent(id);
     bookApi
       .get(id)
       .then(({ book }) => setBook(book))
@@ -76,7 +80,7 @@ export default function BookDetail() {
             </div>
           </div>
           <button
-            onClick={() => id && toggleWishlist(id)}
+            onClick={() => id && toggleWishlist(id, book.title)}
             className={cn(
               'absolute top-10 right-10 p-3 rounded-full shadow-lg transition-all active:scale-95',
               id && isInWishlist(id) ? 'bg-rose-50 text-rose-500 hover:bg-rose-100' : 'bg-white/90 backdrop-blur-sm text-slate-700 hover:text-rose-500'
@@ -126,9 +130,7 @@ export default function BookDetail() {
                 </button>
               </div>
               <button
-                onClick={() => {
-                  for (let i = 0; i < quantity; i++) addToCart(book);
-                }}
+                onClick={() => addToCart(book, quantity)}
                 disabled={book.stock === 0}
                 className="flex-grow flex items-center justify-center space-x-3 bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20 disabled:opacity-50"
               >
@@ -216,6 +218,7 @@ function SpecRow({ label, value }: { label: string; value: string }) {
 
 function ReviewSection({ bookId, reviews, reload }: { bookId: string; reviews: Review[]; reload: () => void }) {
   const { user, openAuthModal } = useAuth();
+  const toast = useToast();
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -228,9 +231,10 @@ function ReviewSection({ bookId, reviews, reload }: { bookId: string; reviews: R
       await bookApi.addReview(bookId, { rating, comment });
       setComment('');
       setRating(5);
+      toast.success('Thanks for sharing your thoughts!');
       reload();
-    } catch (err) {
-      console.error('Error adding review:', err);
+    } catch (err: any) {
+      toast.error(err.message || 'Could not publish review');
     } finally {
       setIsSubmitting(false);
     }

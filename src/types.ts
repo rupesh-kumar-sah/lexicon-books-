@@ -9,6 +9,7 @@ export interface Book {
   genre: string;
   stock: number;
   rating: number;
+  reviewCount?: number;
   year: number;
   featured?: boolean;
 }
@@ -26,14 +27,33 @@ export interface AuthUser {
   createdAt: string;
 }
 
+export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+
+export interface OrderItem {
+  id: string;
+  title: string;
+  author: string;
+  coverImage: string;
+  price: number;
+  quantity: number;
+}
+
 export interface Order {
   id: string;
-  items: CartItem[];
+  items: OrderItem[];
   subtotal: number;
   shipping: number;
   total: number;
-  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: OrderStatus;
+  customerName: string;
+  customerEmail?: string;
+  shippingAddress: string;
   createdAt: number;
+}
+
+export interface AdminOrder extends Order {
+  userId?: string | null;
+  customerEmail: string;
 }
 
 export interface Review {
@@ -44,4 +64,29 @@ export interface Review {
   rating: number;
   comment: string;
   createdAt: number;
+}
+
+export interface AdminStats {
+  totalBooks: number;
+  totalUsers: number;
+  totalOrders: number;
+  totalRevenue: number;
+  lowStockCount: number;
+  topGenres: { genre: string; count: number }[];
+  recentOrders: {
+    id: string;
+    customerName: string;
+    customerEmail: string;
+    total: number;
+    status: OrderStatus;
+    itemCount: number;
+    createdAt: number;
+  }[];
+  dailyOrders: { day: string; count: number; revenue: number }[];
+  statusCounts: Record<string, number>;
+}
+
+export interface GenreInfo {
+  name: string;
+  count: number;
 }
