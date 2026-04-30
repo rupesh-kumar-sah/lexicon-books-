@@ -100,10 +100,12 @@ export const orderApi = {
       email: string;
       firstName: string;
       lastName: string;
+      phone: string;
       address: string;
       city?: string;
       zip?: string;
       country?: string;
+      locationCoords?: { lat: number; lng: number } | null;
     };
   }) =>
     request<{ orderId: string; subtotal: number; shipping: number; total: number }>(

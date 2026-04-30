@@ -131,7 +131,7 @@ export default function Profile() {
             <div className="grid grid-cols-3 gap-4">
               <StatCard icon={ShoppingBag} label="Orders" value={String(stats.orderCount)} accent="bg-blue-50 text-blue-700" />
               <StatCard icon={Package} label="Books" value={String(stats.itemsCount)} accent="bg-emerald-50 text-emerald-700" />
-              <StatCard icon={TrendingUp} label="Spent" value={`$${stats.totalSpent.toFixed(0)}`} accent="bg-violet-50 text-violet-700" />
+              <StatCard icon={TrendingUp} label="Spent" value={`Rs.${stats.totalSpent.toFixed(0)}`} accent="bg-violet-50 text-violet-700" />
             </div>
 
             <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">

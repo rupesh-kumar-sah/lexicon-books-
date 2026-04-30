@@ -12,8 +12,8 @@ router.post('/', async (req, res) => {
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'No items in order' });
   }
-  if (!customer?.email || !customer?.firstName || !customer?.address) {
-    return res.status(400).json({ error: 'Missing customer information' });
+  if (!customer?.email || !customer?.firstName || !customer?.address || !customer?.phone) {
+    return res.status(400).json({ error: 'Missing customer information (email, name, address, and phone are required)' });
   }
 
   const client = await pool.connect();
@@ -57,14 +57,16 @@ router.post('/', async (req, res) => {
     const shippingAddress = `${customer.address}, ${customer.city || ''} ${customer.zip || ''}, ${customer.country || ''}`.trim();
 
     await client.query(
-      `INSERT INTO orders (id, user_id, customer_email, customer_name, shipping_address, items_json, subtotal, shipping, total, status)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, 'pending')`,
+      `INSERT INTO orders (id, user_id, customer_email, customer_name, customer_phone, shipping_address, location_coords, items_json, subtotal, shipping, total, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11, 'pending')`,
       [
         id,
         req.user?.id || null,
         customer.email,
         customerName,
+        customer.phone,
         shippingAddress,
+        customer.locationCoords ? JSON.stringify(customer.locationCoords) : null,
         JSON.stringify(items),
         subtotal,
         shipping,
@@ -86,7 +88,7 @@ router.post('/', async (req, res) => {
 router.get('/mine', requireAuth, async (req, res) => {
   try {
     const result = await query<any>(
-      `SELECT id, items_json, subtotal, shipping, total, status, customer_name, shipping_address, created_at
+      `SELECT id, items_json, subtotal, shipping, total, status, customer_name, customer_phone, shipping_address, location_coords, created_at
        FROM orders WHERE user_id = $1 ORDER BY created_at DESC`,
       [req.user!.id]
     );
@@ -99,7 +101,9 @@ router.get('/mine', requireAuth, async (req, res) => {
         total: Number(r.total),
         status: r.status,
         customerName: r.customer_name,
+        customerPhone: r.customer_phone,
         shippingAddress: r.shipping_address,
+        locationCoords: r.location_coords,
         createdAt: new Date(r.created_at).getTime(),
       })),
     });
@@ -113,7 +117,7 @@ router.get('/:id', requireAuth, async (req, res) => {
   try {
     const result = await query<any>(
       `SELECT id, user_id, items_json, subtotal, shipping, total, status,
-              customer_name, customer_email, shipping_address, created_at
+              customer_name, customer_email, customer_phone, shipping_address, location_coords, created_at
        FROM orders WHERE id = $1`,
       [req.params.id]
     );
@@ -132,7 +136,9 @@ router.get('/:id', requireAuth, async (req, res) => {
         status: r.status,
         customerName: r.customer_name,
         customerEmail: r.customer_email,
+        customerPhone: r.customer_phone,
         shippingAddress: r.shipping_address,
+        locationCoords: r.location_coords,
         createdAt: new Date(r.created_at).getTime(),
       },
     });

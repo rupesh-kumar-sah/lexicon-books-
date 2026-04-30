@@ -12,5 +12,5 @@ export const GENRES = [
 ];
 
 export const APP_NAME = 'lexiconn books';
-export const SHIPPING_FEE = 4.99;
-export const FREE_SHIPPING_THRESHOLD = 50;
+export const SHIPPING_FEE = 150;
+export const FREE_SHIPPING_THRESHOLD = 5000;

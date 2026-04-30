@@ -1,27 +1,78 @@
-import { useState } from 'react';
+import React from 'react';
+import { useState, useCallback } from 'react';
+import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { useCart } from '../context/CartContext';
-import { ShieldCheck, ArrowLeft } from 'lucide-react';
+import { ShieldCheck, ArrowLeft, MapPin, Navigation, Loader2, CheckCircle2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { SHIPPING_FEE, FREE_SHIPPING_THRESHOLD } from '../constants';
 import { orderApi } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
+const MAP_CONTAINER_STYLE = {
+  width: '100%',
+  height: '300px',
+};
+
+const DEFAULT_CENTER = { lat: 27.7172, lng: 85.3240 }; // Default to Kathmandu
+
 export default function Checkout() {
   const { items, total, clearCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     email: user?.email || '',
     firstName: user?.displayName?.split(' ')[0] || '',
     lastName: user?.displayName?.split(' ').slice(1).join(' ') || '',
+    phone: '',
     address: '',
     city: '',
     zip: '',
-    country: 'USA',
+    country: 'Nepal',
+    locationCoords: null as { lat: number; lng: number } | null,
   });
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isGeolocating, setIsGeolocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: (import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY || '',
+  });
+
+  const onMapClick = useCallback((e: google.maps.MapMouseEvent) => {
+    if (e.latLng) {
+      setFormData((prev) => ({
+        ...prev,
+        locationCoords: { lat: e.latLng!.lat(), lng: e.latLng!.lng() },
+      }));
+    }
+  }, []);
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported by your browser.');
+      return;
+    }
+    setIsGeolocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setFormData((prev) => ({
+          ...prev,
+          locationCoords: {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          },
+        }));
+        setIsGeolocating(false);
+      },
+      () => {
+        setError('Unable to retrieve your location. Please pin it on the map.');
+        setIsGeolocating(false);
+      }
+    );
+  };
 
   const isFreeShipping = total >= FREE_SHIPPING_THRESHOLD;
   const shipping = total > 0 ? (isFreeShipping ? 0 : SHIPPING_FEE) : 0;
@@ -81,21 +132,98 @@ export default function Checkout() {
             </h1>
           </div>
 
+          {/* Shipping Info */}
           <section className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">Shipping Information</h2>
-
             <div className="space-y-4">
               <Field label="Email Address" required type="email" value={formData.email} onChange={(v) => setFormData({ ...formData, email: v })} />
               <div className="grid grid-cols-2 gap-4">
                 <Field label="First Name" required value={formData.firstName} onChange={(v) => setFormData({ ...formData, firstName: v })} />
                 <Field label="Last Name" value={formData.lastName} onChange={(v) => setFormData({ ...formData, lastName: v })} />
               </div>
+              <Field label="Phone Number" required type="tel" value={formData.phone} onChange={(v) => setFormData({ ...formData, phone: v })} />
               <Field label="Delivery Address" required value={formData.address} onChange={(v) => setFormData({ ...formData, address: v })} />
               <div className="grid grid-cols-2 gap-4">
                 <Field label="City" value={formData.city} onChange={(v) => setFormData({ ...formData, city: v })} />
-                <Field label="ZIP" value={formData.zip} onChange={(v) => setFormData({ ...formData, zip: v })} />
+                <Field label="ZIP / Postal Code" value={formData.zip} onChange={(v) => setFormData({ ...formData, zip: v })} />
               </div>
             </div>
+          </section>
+
+          {/* Delivery Location Map */}
+          <section className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+            <div className="flex items-start justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-blue-600" />
+                  Delivery Location
+                </h2>
+                <p className="text-xs text-slate-400 mt-1 font-medium">
+                  Tap the map or use your current location to pin the exact delivery point.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={useMyLocation}
+                disabled={isGeolocating}
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-500/20 disabled:opacity-60"
+              >
+                {isGeolocating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Navigation className="w-4 h-4" />
+                )}
+                {isGeolocating ? 'Locating...' : 'Use My Location'}
+              </button>
+            </div>
+
+            <div className="overflow-hidden border border-slate-200 rounded-xl shadow-inner">
+              {loadError ? (
+                <div className="h-[300px] bg-slate-100 flex flex-col items-center justify-center text-slate-400 gap-2">
+                  <MapPin className="w-8 h-8" />
+                  <p className="text-sm font-medium">Could not load Google Maps.</p>
+                  <p className="text-xs">Check your API key configuration.</p>
+                </div>
+              ) : isLoaded ? (
+                <GoogleMap
+                  mapContainerStyle={MAP_CONTAINER_STYLE}
+                  center={formData.locationCoords || DEFAULT_CENTER}
+                  zoom={formData.locationCoords ? 16 : 12}
+                  onClick={onMapClick}
+                  options={{
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false,
+                    zoomControlOptions: { position: 3 },
+                  }}
+                >
+                  {formData.locationCoords && (
+                    <Marker
+                      position={formData.locationCoords}
+                      animation={2} // DROP animation
+                    />
+                  )}
+                </GoogleMap>
+              ) : (
+                <div className="h-[300px] bg-slate-100 flex items-center justify-center text-slate-400 gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm font-medium">Loading Map...</span>
+                </div>
+              )}
+            </div>
+
+            {formData.locationCoords ? (
+              <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">
+                  Location pinned: {formData.locationCoords.lat.toFixed(5)}, {formData.locationCoords.lng.toFixed(5)}
+                </p>
+              </div>
+            ) : (
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">
+                No location pinned yet — tap the map or click "Use My Location"
+              </p>
+            )}
           </section>
 
           {error && (
@@ -107,12 +235,13 @@ export default function Checkout() {
           <button
             type="submit"
             disabled={isProcessing}
-            className="w-full flex items-center justify-center space-x-3 bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20 disabled:opacity-50"
+            className="w-full flex items-center justify-center space-x-3 bg-blue-600 text-white px-8 py-5 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20 disabled:opacity-50"
           >
-            <span>{isProcessing ? 'Processing...' : `Place Order — $${finalTotal.toFixed(2)}`}</span>
+            <span>{isProcessing ? 'Processing...' : `Place Order — Rs.${finalTotal.toFixed(2)}`}</span>
           </button>
         </form>
 
+        {/* Order Summary */}
         <div className="lg:sticky lg:top-24 h-fit">
           <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-xl">
             <h2 className="text-xl font-bold mb-8 text-slate-900 tracking-tight">Order Summary</h2>
@@ -141,7 +270,7 @@ export default function Checkout() {
               </div>
               <div className="flex justify-between text-slate-500 text-sm font-medium">
                 <span>Shipping</span>
-                <span className="font-bold text-slate-900">{isFreeShipping ? 'Complimentary' : `$${shipping.toFixed(2)}`}</span>
+                <span className="font-bold text-slate-900">{isFreeShipping ? 'Complimentary' : `Rs.${shipping.toFixed(2)}`}</span>
               </div>
               <div className="flex justify-between items-center pt-8 border-t border-slate-100">
                 <span className="text-lg font-bold text-slate-900">Total Due</span>
@@ -150,7 +279,7 @@ export default function Checkout() {
             </div>
 
             <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-              <ShieldCheck className="w-5 h-5 text-emerald-600" />
+              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
               <p className="text-[10px] uppercase font-bold tracking-widest text-emerald-700">
                 Encrypted, secure checkout
               </p>

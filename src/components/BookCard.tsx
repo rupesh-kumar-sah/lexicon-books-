@@ -1,3 +1,4 @@
+import React from 'react';
 import { ShoppingCart, Heart, Star } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
@@ -7,6 +8,7 @@ import { useWishlist } from '../context/WishlistContext';
 import { cn } from '../lib/utils';
 
 interface BookCardProps {
+  key?: React.Key | string | number;
   book: Book;
 }
 

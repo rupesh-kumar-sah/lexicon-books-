@@ -8,10 +8,12 @@ import { WishlistProvider } from './context/WishlistContext.tsx';
 import { ToastProvider } from './context/ToastContext.tsx';
 import { RecentlyViewedProvider } from './context/RecentlyViewedContext.tsx';
 import { SiteSettingsProvider } from './context/SiteSettingsContext.tsx';
+import ErrorBoundary from './components/ErrorBoundary.tsx';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ToastProvider>
+    <ErrorBoundary>
+      <ToastProvider>
       <SiteSettingsProvider>
         <AuthProvider>
           <WishlistProvider>
@@ -24,5 +26,6 @@ createRoot(document.getElementById('root')!).render(
         </AuthProvider>
       </SiteSettingsProvider>
     </ToastProvider>
+    </ErrorBoundary>
   </StrictMode>
 );

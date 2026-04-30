@@ -88,7 +88,7 @@ router.get('/orders', requireAdmin, async (req, res) => {
       );
     }
 
-    let sql = `SELECT id, user_id, customer_email, customer_name, shipping_address,
+    let sql = `SELECT id, user_id, customer_email, customer_name, customer_phone, shipping_address, location_coords,
                       items_json, subtotal, shipping, total, status, created_at
                FROM orders`;
     if (where.length > 0) sql += ' WHERE ' + where.join(' AND ');
@@ -103,7 +103,9 @@ router.get('/orders', requireAdmin, async (req, res) => {
         userId: r.user_id,
         customerEmail: r.customer_email,
         customerName: r.customer_name,
+        customerPhone: r.customer_phone,
         shippingAddress: r.shipping_address,
+        locationCoords: r.location_coords,
         items: r.items_json,
         subtotal: Number(r.subtotal),
         shipping: Number(r.shipping),

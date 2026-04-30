@@ -47,7 +47,9 @@ export interface Order {
   status: OrderStatus;
   customerName: string;
   customerEmail?: string;
+  customerPhone?: string;
   shippingAddress: string;
+  locationCoords?: { lat: number; lng: number } | null;
   createdAt: number;
 }
 

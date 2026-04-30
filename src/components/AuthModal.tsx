@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User, BookOpen, Loader2 } from 'lucide-react';

@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import {
   LayoutDashboard,
@@ -238,7 +239,7 @@ function DashboardView() {
   }
 
   const cards = [
-    { label: 'Total Revenue', value: `$${stats.totalRevenue.toFixed(2)}`, helper: 'Excl. cancelled', icon: DollarSign, accent: 'emerald' },
+    { label: 'Total Revenue', value: `Rs.${stats.totalRevenue.toFixed(2)}`, helper: 'Excl. cancelled', icon: DollarSign, accent: 'emerald' },
     { label: 'Orders', value: stats.totalOrders, helper: 'All time', icon: ShoppingBag, accent: 'blue' },
     { label: 'Customers', value: stats.totalUsers, helper: 'Registered readers', icon: UsersIcon, accent: 'violet' },
     { label: 'Catalog', value: stats.totalBooks, helper: 'Titles in stock', icon: BookIcon, accent: 'amber' },
@@ -324,7 +325,7 @@ function DashboardView() {
                     stroke="#2563eb"
                     strokeWidth={2}
                     fill="url(#revenue)"
-                    name="Revenue ($)"
+                    name="Revenue (Rs.)"
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -733,7 +734,7 @@ function BookEntryModal({
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <Field label="Price ($)" required type="number" step="0.01" min="0" value={String(formData.price ?? 0)} onChange={(v) => setFormData({ ...formData, price: Number(v) })} />
+            <Field label="Price (Rs.)" required type="number" step="0.01" min="0" value={String(formData.price ?? 0)} onChange={(v) => setFormData({ ...formData, price: Number(v) })} />
             <Field label="Stock" required type="number" min="0" value={String(formData.stock ?? 0)} onChange={(v) => setFormData({ ...formData, stock: Number(v) })} />
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Genre</label>
@@ -825,7 +826,7 @@ function Field({
   );
 }
 
-function InventoryView({ onEdit }: { onEdit: (book: Book) => void }) {
+function InventoryView({ onEdit }: { key?: React.Key | string | number; onEdit: (book: Book) => void }) {
   const toast = useToast();
   const [books, setBooks] = useState<Book[]>([]);
   const [searchTerm, setSearchTerm] = useState('');

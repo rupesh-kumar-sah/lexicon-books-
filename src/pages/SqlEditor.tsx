@@ -1,3 +1,4 @@
+import React from 'react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play, ChevronRight, ChevronDown, Database, Table2, Columns2 as Columns, ShieldAlert, Loader as Loader2, Copy, Check, Trash2, Clock, Rows2 as RowsIcon, CircleAlert as AlertCircle, History } from 'lucide-react';

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
@@ -10,6 +11,7 @@ import {
   XCircle,
   Loader2,
   MapPin,
+  Phone,
 } from 'lucide-react';
 import { orderApi } from '../lib/api';
 import { Order, OrderStatus } from '../types';
@@ -32,6 +34,11 @@ export default function OrderDetail() {
   const { user, openAuthModal } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: (import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY || '',
+  });
+
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
@@ -187,6 +194,12 @@ export default function OrderDetail() {
               </p>
               <p className="font-bold text-slate-900">{order.customerName}</p>
               <p className="text-sm text-slate-600 leading-relaxed">{order.shippingAddress}</p>
+              {order.customerPhone && (
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <Phone className="w-3 h-3" />
+                  <span>{order.customerPhone}</span>
+                </div>
+              )}
               <p className="text-xs text-slate-400">
                 Placed on {new Date(order.createdAt).toLocaleString()}
               </p>
@@ -205,6 +218,45 @@ export default function OrderDetail() {
               </div>
             </div>
           </div>
+
+          {order.locationCoords && (
+            <div className="p-8 border-t border-slate-100">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                <MapPin className="w-3 h-3" />
+                Pinned Delivery Location
+              </p>
+              <div className="overflow-hidden border border-slate-200 rounded-xl shadow-inner">
+                {loadError ? (
+                  <div className="h-[220px] bg-slate-100 flex flex-col items-center justify-center text-slate-400 gap-2">
+                    <MapPin className="w-7 h-7" />
+                    <p className="text-xs font-medium">Map unavailable</p>
+                  </div>
+                ) : isLoaded ? (
+                  <GoogleMap
+                    mapContainerStyle={{ width: '100%', height: '220px' }}
+                    center={order.locationCoords}
+                    zoom={16}
+                    options={{
+                      disableDefaultUI: true,
+                      draggable: false,
+                      scrollwheel: false,
+                      zoomControl: true,
+                    }}
+                  >
+                    <Marker position={order.locationCoords} />
+                  </GoogleMap>
+                ) : (
+                  <div className="h-[220px] bg-slate-100 flex items-center justify-center text-slate-400 text-xs gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading map...
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-3">
+                Coords: {order.locationCoords.lat.toFixed(5)}, {order.locationCoords.lng.toFixed(5)}
+              </p>
+            </div>
+          )}
         </motion.div>
 
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
