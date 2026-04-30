@@ -11,6 +11,7 @@ import wishlistRoutes from './server/routes/wishlist';
 import orderRoutes from './server/routes/orders';
 import sqlRoutes from './server/routes/sql';
 import { seedIfEmpty } from './server/seed';
+import { ensureSchema } from './server/schema';
 
 dotenv.config();
 
@@ -34,8 +35,10 @@ async function startServer() {
   app.use('/api/orders', orderRoutes);
   app.use('/api/sql', sqlRoutes);
 
-  // Seed DB on startup if empty (non-blocking)
-  seedIfEmpty().catch((e) => console.error('[seed] failed:', e));
+  // Ensure schema exists, then seed DB on startup if empty (non-blocking)
+  ensureSchema()
+    .then(() => seedIfEmpty())
+    .catch((e) => console.error('[db init] failed:', e));
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
