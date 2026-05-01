@@ -46,7 +46,7 @@ router.get('/', async (req, res) => {
     
     // Cache Key based on all query parameters
     const cacheKey = `books:list:${JSON.stringify(req.query)}`;
-    const cached = getCache<{ books: any[] }>(cacheKey);
+    const cached = await getCache<{ books: any[] }>(cacheKey);
     if (cached) return res.json(cached);
 
     const where: string[] = [];
@@ -96,7 +96,7 @@ router.get('/', async (req, res) => {
 router.get('/genres', async (_req, res) => {
   try {
     const cacheKey = 'genres';
-    const cached = getCache<{ genres: any[] }>(cacheKey);
+    const cached = await getCache<{ genres: any[] }>(cacheKey);
     if (cached) return res.json(cached);
 
     const result = await query<{ genre: string; count: string }>(
@@ -116,7 +116,7 @@ router.get('/genres', async (_req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const cacheKey = `books:detail:${req.params.id}`;
-    const cached = getCache<{ book: any }>(cacheKey);
+    const cached = await getCache<{ book: any }>(cacheKey);
     if (cached) return res.json(cached);
 
     const result = await query(`${BOOK_DETAIL_SELECT} WHERE b.id = $1`, [req.params.id]);
