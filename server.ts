@@ -15,6 +15,7 @@ import sqlRoutes from './server/routes/sql';
 import adminRoutes from './server/routes/admin';
 import { seedIfEmpty } from './server/seed';
 import { ensureSchema } from './server/schema';
+import { query } from './server/db';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
