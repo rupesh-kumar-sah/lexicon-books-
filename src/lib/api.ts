@@ -11,6 +11,8 @@ export function setToken(token: string | null) {
   else localStorage.removeItem(TOKEN_KEY);
 }
 
+const BASE_URL = import.meta.env.VITE_API_URL || '';
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -19,7 +21,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
   const text = await res.text();
   let data: any = null;
   if (text) {
