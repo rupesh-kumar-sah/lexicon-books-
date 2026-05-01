@@ -1,7 +1,7 @@
 import React from 'react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Mail, Lock, User, BookOpen, Loader2 } from 'lucide-react';
+import { X, Mail, Lock, User, BookOpen, Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function AuthModal() {
@@ -10,6 +10,8 @@ export default function AuthModal() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [adminPin, setAdminPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -17,6 +19,8 @@ export default function AuthModal() {
     setEmail('');
     setPassword('');
     setDisplayName('');
+    setAdminPin('');
+    setShowPin(false);
     setError(null);
     setSubmitting(false);
   };
@@ -32,14 +36,19 @@ export default function AuthModal() {
     setSubmitting(true);
     try {
       if (mode === 'signin') {
-        await signIn(email.trim(), password);
+        await signIn(email.trim(), password, adminPin || undefined);
       } else {
         if (!displayName.trim()) throw new Error('Please enter your name');
         await signUp(email.trim(), password, displayName.trim());
       }
       close();
     } catch (err: any) {
-      setError(err.message || 'Authentication failed');
+      if (err.message?.includes('Admin PIN required')) {
+        setShowPin(true);
+        setError('Please enter your Admin PIN to continue');
+      } else {
+        setError(err.message || 'Authentication failed');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -73,7 +82,7 @@ export default function AuthModal() {
                 <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
                   <BookOpen className="w-5 h-5" />
                 </div>
-                <span className="text-xs font-bold uppercase tracking-widest opacity-80">Lexiconn Books</span>
+                <span className="text-xs font-bold uppercase tracking-widest opacity-80">BookSellNP</span>
               </div>
               <h2 className="text-2xl font-bold tracking-tight">
                 {mode === 'signin' ? 'Welcome back' : 'Create your account'}
@@ -84,50 +93,77 @@ export default function AuthModal() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-8 space-y-5">
-              {mode === 'signup' && (
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Name</label>
+              {!showPin && (
+                <>
+                  {mode === 'signup' && (
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Name</label>
+                      <div className="relative mt-1.5">
+                        <User className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                        <input
+                          required
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          placeholder="Jane Doe"
+                          className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Email</label>
+                    <div className="relative mt-1.5">
+                      <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                      <input
+                        required
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="reader@booksellnp.com"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Password</label>
+                    <div className="relative mt-1.5">
+                      <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                      <input
+                        required
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="At least 6 characters"
+                        minLength={6}
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {showPin && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="overflow-hidden"
+                >
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Admin Security PIN</label>
                   <div className="relative mt-1.5">
-                    <User className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                    <ShieldCheck className="w-4 h-4 absolute left-3.5 top-3.5 text-blue-600" />
                     <input
                       required
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="Jane Doe"
-                      className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                      type="text"
+                      inputMode="numeric"
+                      value={adminPin}
+                      onChange={(e) => setAdminPin(e.target.value)}
+                      placeholder="Enter 4-digit PIN"
+                      maxLength={4}
+                      className="w-full pl-10 pr-4 py-3 bg-blue-50 border border-blue-100 rounded-xl text-sm font-bold tracking-[0.5em] focus:ring-2 focus:ring-blue-500 outline-none transition"
                     />
                   </div>
-                </div>
+                </motion.div>
               )}
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Email</label>
-                <div className="relative mt-1.5">
-                  <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
-                  <input
-                    required
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="reader@lexicon.com"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Password</label>
-                <div className="relative mt-1.5">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
-                  <input
-                    required
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="At least 6 characters"
-                    minLength={6}
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                  />
-                </div>
-              </div>
 
               {error && (
                 <div className="text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">
@@ -141,22 +177,24 @@ export default function AuthModal() {
                 className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/20 active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                {mode === 'signin' ? 'Sign In' : 'Create Account'}
+                {showPin ? 'Verify & Sign In' : mode === 'signin' ? 'Sign In' : 'Create Account'}
               </button>
 
-              <div className="text-center text-sm text-slate-500">
-                {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setError(null);
-                    setMode(mode === 'signin' ? 'signup' : 'signin');
-                  }}
-                  className="font-bold text-blue-600 hover:underline"
-                >
-                  {mode === 'signin' ? 'Sign up' : 'Sign in'}
-                </button>
-              </div>
+              {!showPin && (
+                <div className="text-center text-sm text-slate-500">
+                  {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError(null);
+                      setMode(mode === 'signin' ? 'signup' : 'signin');
+                    }}
+                    className="font-bold text-blue-600 hover:underline"
+                  >
+                    {mode === 'signin' ? 'Sign up' : 'Sign in'}
+                  </button>
+                </div>
+              )}
             </form>
           </motion.div>
         </div>

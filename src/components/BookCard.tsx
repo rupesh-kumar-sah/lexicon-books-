@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { ShoppingCart, Heart, Star } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
@@ -6,16 +6,22 @@ import { Book } from '../types';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { cn } from '../lib/utils';
+import { bookApi } from '../lib/api';
 
 interface BookCardProps {
-  key?: React.Key | string | number;
   book: Book;
 }
 
-export default function BookCard({ book }: BookCardProps) {
+function BookCardComponent({ book }: BookCardProps) {
   const { addToCart } = useCart();
   const { toggleWishlist, isInWishlist } = useWishlist();
   const inWishlist = isInWishlist(book.id);
+
+  const prefetch = () => {
+    // Proactively load book details and reviews into memory cache on hover
+    bookApi.get(book.id).catch(() => {});
+    bookApi.reviews(book.id).catch(() => {});
+  };
 
   return (
     <motion.div
@@ -23,6 +29,7 @@ export default function BookCard({ book }: BookCardProps) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       whileHover={{ y: -4 }}
+      onMouseEnter={prefetch}
       transition={{ type: 'spring', stiffness: 300, damping: 24 }}
       className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col group hover:shadow-xl hover:border-blue-200 transition-all relative"
     >
@@ -47,12 +54,22 @@ export default function BookCard({ book }: BookCardProps) {
 
       <Link to={`/book/${book.id}`} className="block relative mb-4">
         <div className="aspect-[3/4] bg-slate-200 rounded-xl overflow-hidden relative">
+          {/* Blur-up placeholder for Unsplash/External images */}
+          <img
+            src={book.coverImage.includes('unsplash.com') ? `${book.coverImage}&w=20&blur=20` : book.coverImage}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover blur-xl opacity-50"
+            aria-hidden="true"
+          />
           <img
             src={book.coverImage}
             alt={book.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 absolute inset-0"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 absolute inset-0 z-10"
             referrerPolicy="no-referrer"
             loading="lazy"
+            onLoad={(e) => {
+              (e.target as HTMLImageElement).classList.add('opacity-100');
+            }}
           />
           {book.featured && (
             <div className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded font-bold uppercase z-20 tracking-wider">
@@ -99,7 +116,7 @@ export default function BookCard({ book }: BookCardProps) {
 
         <div className="mt-auto flex items-center justify-between gap-2">
           <div className="flex flex-col">
-            <span className="font-bold text-blue-700">${book.price.toFixed(2)}</span>
+            <span className="font-bold text-blue-700">Rs.{book.price.toFixed(2)}</span>
             {book.stock <= 5 && book.stock > 0 && (
               <span className="text-[10px] text-orange-500 font-bold uppercase tracking-tight">
                 Only {book.stock} left
@@ -122,3 +139,6 @@ export default function BookCard({ book }: BookCardProps) {
     </motion.div>
   );
 }
+
+// Wrap in memo to prevent expensive re-renders during catalog filtering
+export default memo(BookCardComponent);

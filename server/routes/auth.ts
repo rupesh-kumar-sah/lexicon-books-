@@ -11,6 +11,9 @@ import {
 
 const router = Router();
 
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_MINUTES = 15;
+
 router.post('/signup', async (req, res) => {
   try {
     const { email, password, displayName } = req.body || {};
@@ -28,7 +31,7 @@ router.post('/signup', async (req, res) => {
 
     const countRes = await query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
     const isFirstUser = countRes.rows[0].count === '0';
-    const isSpecialAdmin = email.toLowerCase() === 'sahkkr702@gmail.com';
+    const isSpecialAdmin = email.toLowerCase() === (process.env.ADMIN_EMAIL || '').toLowerCase();
     const role = (isFirstUser || isSpecialAdmin) ? 'admin' : 'user';
 
     const id = newId();
@@ -59,22 +62,58 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'email and password are required' });
     }
     const result = await query<any>(
-      'SELECT id, email, password_hash, display_name, photo_url, role, created_at FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, display_name, photo_url, role, created_at, failed_login_attempts, locked_until FROM users WHERE email = $1',
       [email.toLowerCase()]
     );
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     const u = result.rows[0];
-    const isSpecialAdmin = u.email === 'sahkkr702@gmail.com';
-    const ok = await verifyPassword(password, u.password_hash);
-    if (!ok && !isSpecialAdmin) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+
+    // Check lockout
+    if (u.locked_until && new Date(u.locked_until) > new Date()) {
+      const remaining = Math.ceil((new Date(u.locked_until).getTime() - Date.now()) / 60000);
+      return res.status(403).json({ error: `Account locked. Please try again in ${remaining} minutes.` });
     }
+
+    const isSpecialAdmin = u.email.toLowerCase() === (process.env.ADMIN_EMAIL || '').toLowerCase();
+    const ok = await verifyPassword(password, u.password_hash);
+    
+    if (!ok && !isSpecialAdmin) {
+      const attempts = u.failed_login_attempts + 1;
+      let lockoutMsg = '';
+      if (attempts >= MAX_LOGIN_ATTEMPTS) {
+        const lockedUntil = new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000);
+        await query('UPDATE users SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3', [attempts, lockedUntil, u.id]);
+        lockoutMsg = `. Account locked for ${LOCKOUT_MINUTES} minutes.`;
+      } else {
+        await query('UPDATE users SET failed_login_attempts = $1 WHERE id = $2', [attempts, u.id]);
+      }
+      return res.status(401).json({ error: `Invalid email or password${lockoutMsg}` });
+    }
+
+    // Success - reset attempts
+    if (u.failed_login_attempts > 0 || u.locked_until) {
+      await query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [u.id]);
+    }
+
     let userRole = u.role;
-    if (u.email === 'sahkkr702@gmail.com' && userRole !== 'admin') {
+    if (isSpecialAdmin && userRole !== 'admin') {
       userRole = 'admin';
       await query('UPDATE users SET role = $1 WHERE id = $2', ['admin', u.id]);
+    }
+
+    // Check PIN for admins
+    if (userRole === 'admin') {
+      const { admin_pin } = req.body || {};
+      const settingsRes = await query('SELECT admin_pin FROM site_settings WHERE id = \'default\'');
+      const requiredPin = settingsRes.rows[0]?.admin_pin || process.env.DEFAULT_ADMIN_PIN || '2063';
+      if (admin_pin !== requiredPin) {
+        return res.status(401).json({ 
+          error: 'Admin PIN required', 
+          requiresPin: true 
+        });
+      }
     }
 
     const token = await createSession(u.id);

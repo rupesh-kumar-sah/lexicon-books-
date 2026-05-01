@@ -1,6 +1,8 @@
 import type { Book, Review, AuthUser, Order, AdminOrder, AdminStats, GenreInfo, OrderStatus, AdminUser, SiteSettings } from '../types';
 
-const TOKEN_KEY = 'lexiconn_token';
+const TOKEN_KEY = 'booksellnp_token';
+const CLIENT_CACHE: Record<string, { data: any; timestamp: number }> = {};
+const CACHE_TTL = 300000; // 5 minutes in ms
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -14,6 +16,16 @@ export function setToken(token: string | null) {
 const BASE_URL = import.meta.env.VITE_API_URL || '';
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const cacheKey = `${options.method || 'GET'}:${path}:${options.body || ''}`;
+  
+  // Return cached data if available for GET requests
+  if ((!options.method || options.method === 'GET') && CLIENT_CACHE[cacheKey]) {
+    const entry = CLIENT_CACHE[cacheKey];
+    if (Date.now() - entry.timestamp < CACHE_TTL) {
+      return entry.data as T;
+    }
+  }
+
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -34,6 +46,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!res.ok) {
     throw new Error(data?.error || `Request failed (${res.status})`);
   }
+
+  // Cache successful GET requests
+  if (!options.method || options.method === 'GET') {
+    CLIENT_CACHE[cacheKey] = { data, timestamp: Date.now() };
+  } else if (options.method !== 'GET') {
+    // Clear cache on mutations to ensure data freshness
+    Object.keys(CLIENT_CACHE).forEach(key => delete CLIENT_CACHE[key]);
+  }
+
   return data as T;
 }
 
@@ -44,7 +65,7 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  login: (input: { email: string; password: string }) =>
+  login: (input: { email: string; password: string; admin_pin?: string }) =>
     request<{ token: string; user: AuthUser }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(input),

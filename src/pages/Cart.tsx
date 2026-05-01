@@ -1,15 +1,17 @@
 import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useSiteSettings } from '../context/SiteSettingsContext';
 import { Trash2, Plus, Minus, ArrowRight, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SHIPPING_FEE, FREE_SHIPPING_THRESHOLD } from '../constants';
 
 export default function Cart() {
+  const { settings } = useSiteSettings();
   const { items, removeFromCart, updateQuantity, total } = useCart();
   
-  const isFreeShipping = total >= FREE_SHIPPING_THRESHOLD;
+  const isFreeShipping = total >= settings.freeShippingThreshold;
   const subtotal = total;
-  const shipping = total > 0 ? (isFreeShipping ? 0 : SHIPPING_FEE) : 0;
+  const shipping = total > 0 ? (isFreeShipping ? 0 : settings.shippingKtm) : 0; // estimate based on KTM
   const finalTotal = subtotal + shipping;
 
   if (items.length === 0) {
@@ -80,7 +82,7 @@ export default function Cart() {
                         <Plus className="w-3 h-3" />
                       </button>
                     </div>
-                    <div className="text-xl font-bold text-slate-900">${(item.price * item.quantity).toFixed(2)}</div>
+                    <div className="text-xl font-bold text-slate-900">Rs.{(item.price * item.quantity).toFixed(2)}</div>
                   </div>
                 </div>
               </motion.div>
@@ -96,14 +98,14 @@ export default function Cart() {
             <div className="space-y-4 mb-8">
               <div className="flex justify-between text-slate-500 text-sm font-medium">
                 <span>Subtotal</span>
-                <span className="font-bold text-slate-900">${subtotal.toFixed(2)}</span>
+                <span className="font-bold text-slate-900">Rs.{subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-slate-500 text-sm font-medium">
                 <span>Shipping</span>
                 {isFreeShipping ? (
                   <span className="font-bold text-emerald-600 uppercase text-[10px] tracking-widest">Complimentary</span>
                 ) : (
-                  <span className="font-bold text-slate-900">${shipping.toFixed(2)}</span>
+                  <span className="font-bold text-slate-900">Rs.{shipping.toFixed(2)}</span>
                 )}
               </div>
               {!isFreeShipping && (
@@ -117,7 +119,7 @@ export default function Cart() {
             
             <div className="pt-8 border-t border-slate-200 flex justify-between items-center mb-10">
               <span className="font-bold text-slate-900">Total</span>
-              <span className="text-3xl font-bold text-slate-900">${finalTotal.toFixed(2)}</span>
+              <span className="text-3xl font-bold text-slate-900">Rs.{finalTotal.toFixed(2)}</span>
             </div>
             
             <Link 

@@ -11,11 +11,12 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
-  connectionTimeoutMillis: 30000, // How long to wait when connecting to a new client
+  max: 50, // Increased for better concurrency
+  idleTimeoutMillis: 60000, // Keep connections alive for 60s
+  connectionTimeoutMillis: 10000, // Faster timeout
+  keepAlive: true, // Crucial for maintaining ready connections
   ssl: {
-    rejectUnauthorized: false, // Required for some hosted Postgres providers like Neon
+    rejectUnauthorized: false,
   },
 });
 

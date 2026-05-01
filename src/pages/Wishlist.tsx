@@ -37,7 +37,7 @@ export default function Wishlist() {
           </div>
           <div>
             <h1 className="text-4xl font-bold text-slate-900 tracking-tight">Saved Collection</h1>
-            <p className="text-slate-400 text-sm font-medium">Your personal Lexicon curation.</p>
+            <p className="text-slate-400 text-sm font-medium">Your personal BookSellNP curation.</p>
           </div>
         </div>
       </header>

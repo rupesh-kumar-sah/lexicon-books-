@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { CartItem, Book } from '../types';
 import { useToast } from './ToastContext';
 
-const STORAGE_KEY = 'lexiconn_cart';
+const STORAGE_KEY = 'booksellnp_cart';
 const LEGACY_KEY = 'lumina_cart';
 
 interface CartContextType {

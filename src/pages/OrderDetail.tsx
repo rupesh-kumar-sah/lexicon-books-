@@ -209,11 +209,11 @@ export default function OrderDetail() {
                 Payment Summary
               </p>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="font-bold text-slate-900">${order.subtotal.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span className="text-slate-500">Shipping</span><span className="font-bold text-slate-900">${order.shipping.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="font-bold text-slate-900">Rs.{order.subtotal.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Shipping</span><span className="font-bold text-slate-900">Rs.{order.shipping.toFixed(2)}</span></div>
                 <div className="flex justify-between pt-3 border-t border-slate-100">
                   <span className="font-bold text-slate-900">Total</span>
-                  <span className="text-xl font-bold text-blue-700">${order.total.toFixed(2)}</span>
+                  <span className="text-xl font-bold text-blue-700">Rs.{order.total.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -283,7 +283,7 @@ export default function OrderDetail() {
                   <p className="text-sm text-slate-500">{it.author}</p>
                   <p className="text-xs text-slate-400 mt-1">Qty: {it.quantity}</p>
                 </div>
-                <p className="font-bold text-slate-900">${(Number(it.price) * Number(it.quantity)).toFixed(2)}</p>
+                <p className="font-bold text-slate-900">Rs.{(Number(it.price) * Number(it.quantity)).toFixed(2)}</p>
               </li>
             ))}
           </ul>

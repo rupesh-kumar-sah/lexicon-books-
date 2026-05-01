@@ -1,34 +1,50 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
-import Home from './pages/Home';
-import Catalog from './pages/Catalog';
-import BookDetail from './pages/BookDetail';
-import Cart from './pages/Cart';
-import Wishlist from './pages/Wishlist';
-import Profile from './pages/Profile';
-import Checkout from './pages/Checkout';
-import Admin from './pages/Admin';
-import OrderSuccess from './pages/OrderSuccess';
-import OrderDetail from './pages/OrderDetail';
-import SqlEditor from './pages/SqlEditor';
+import { Loader2 } from 'lucide-react';
+
+// Lazy load pages for better performance
+const Home = lazy(() => import('./pages/Home'));
+const Catalog = lazy(() => import('./pages/Catalog'));
+const BookDetail = lazy(() => import('./pages/BookDetail'));
+const Cart = lazy(() => import('./pages/Cart'));
+const Wishlist = lazy(() => import('./pages/Wishlist'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const Admin = lazy(() => import('./pages/Admin'));
+const OrderSuccess = lazy(() => import('./pages/OrderSuccess'));
+const OrderDetail = lazy(() => import('./pages/OrderDetail'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Terms = lazy(() => import('./pages/Terms'));
+
+function PageLoader() {
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+    </div>
+  );
+}
 
 export default function App() {
   return (
     <Router>
       <Layout>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/catalog" element={<Catalog />} />
-          <Route path="/book/:id" element={<BookDetail />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/wishlist" element={<Wishlist />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/admin/*" element={<Admin />} />
-          <Route path="/sql" element={<SqlEditor />} />
-          <Route path="/order-success" element={<OrderSuccess />} />
-          <Route path="/order/:id" element={<OrderDetail />} />
-        </Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/catalog" element={<Catalog />} />
+            <Route path="/book/:id" element={<BookDetail />} />
+            <Route path="/cart" element={<Cart />} />
+            <Route path="/wishlist" element={<Wishlist />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/admin/*" element={<Admin />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/order-success" element={<OrderSuccess />} />
+            <Route path="/order/:id" element={<OrderDetail />} />
+          </Routes>
+        </Suspense>
       </Layout>
     </Router>
   );

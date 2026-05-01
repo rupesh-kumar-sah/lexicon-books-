@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { MessageSquare, Send, X, Bot, User, Loader2, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
+import { bookApi } from '../lib/api';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -11,11 +12,21 @@ interface Message {
 export default function AIAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: 'Hello! I am your Lexiconn AI curator. How can I help you find your next great read today?' }
+    { role: 'assistant', content: 'Hello! I am your BookSellNP AI curator. How can I help you find your next great read today?' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [catalogContext, setCatalogContext] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bookApi.list({ limit: 100 })
+      .then(res => {
+        const booksStr = res.books.map(b => `"${b.title}" by ${b.author} (Rs.${b.price})`).join(', ');
+        setCatalogContext(`\n\nCurrently available books in our catalog: ${booksStr}`);
+      })
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -41,9 +52,12 @@ export default function AIAssistant() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'mixtral-8x7b-32768',
+          model: 'llama-3.1-8b-instant',
           messages: [
-            { role: 'system', content: 'You are a professional book curator for "Lexiconn Books", a premium online bookstore. You are helpful, sophisticated, and knowledgeable about all genres of literature. Recommend books, explain themes, and assist users with their reading journey. Keep responses concise and engaging.' },
+            { 
+              role: 'system', 
+              content: 'You are the official AI Assistant and Book Curator for "BookSellNP", a premium online bookstore based in Nepal. You are helpful, sophisticated, and knowledgeable about all genres of literature. Your job is to help users find books, explain themes, assist with their reading journey, and answer questions about the BookSellNP platform. Important details: The currency is Nepalese Rupees (Rs.). We offer Cash on Delivery (COD) as our primary payment method. We have a special collection of "Old is Gold" books available. Users can browse books, add them to cart, wishlist them, and write reviews. Admins can manage inventory, upload book covers, and track orders. The platform is a modern web app built with React, Node.js, and PostgreSQL. Keep responses concise, engaging, and specifically tailored to the BookSellNP experience.' + catalogContext 
+            },
             ...messages,
             { role: 'user', content: userMessage }
           ],
@@ -81,7 +95,7 @@ export default function AIAssistant() {
                   <Bot className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm tracking-tight">Lexiconn AI</h3>
+                  <h3 className="font-bold text-sm tracking-tight">BookSellNP AI</h3>
                   <div className="flex items-center gap-1.5">
                     <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Online</span>

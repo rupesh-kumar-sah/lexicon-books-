@@ -2,9 +2,9 @@ import React from 'react';
 import { useState, useCallback } from 'react';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import { useCart } from '../context/CartContext';
-import { ShieldCheck, ArrowLeft, MapPin, Navigation, Loader2, CheckCircle2 } from 'lucide-react';
+import { useSiteSettings } from '../context/SiteSettingsContext';
+import { ShieldCheck, ArrowLeft, MapPin, Navigation, Loader2, CheckCircle2, DollarSign, Phone } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { SHIPPING_FEE, FREE_SHIPPING_THRESHOLD } from '../constants';
 import { orderApi } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -16,6 +16,8 @@ const MAP_CONTAINER_STYLE = {
 const DEFAULT_CENTER = { lat: 27.7172, lng: 85.3240 }; // Default to Kathmandu
 
 export default function Checkout() {
+  const { settings } = useSiteSettings();
+  const [shippingLocation, setShippingLocation] = useState<'ktm' | 'outside'>('ktm');
   const { items, total, clearCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -74,8 +76,8 @@ export default function Checkout() {
     );
   };
 
-  const isFreeShipping = total >= FREE_SHIPPING_THRESHOLD;
-  const shipping = total > 0 ? (isFreeShipping ? 0 : SHIPPING_FEE) : 0;
+  const isFreeShipping = total >= settings.freeShippingThreshold;
+  const shipping = total > 0 ? (isFreeShipping ? 0 : (shippingLocation === 'ktm' ? settings.shippingKtm : settings.shippingOutside)) : 0;
   const finalTotal = total + shipping;
 
   const handleCheckout = async (e: React.FormEvent) => {
@@ -83,6 +85,22 @@ export default function Checkout() {
     if (items.length === 0) return;
     setIsProcessing(true);
     setError(null);
+    
+    // Mandatory Location Check
+    if (!formData.locationCoords) {
+      setError('COMPULSORY: Please pin your exact delivery location on the map to proceed with your order.');
+      setIsProcessing(false);
+      return;
+    }
+
+    // Phone Validation (Nepali 10-digit mobile)
+    const phoneRegex = /^9\d{9}$/;
+    if (!phoneRegex.test(formData.phone.replace(/\s/g, ''))) {
+      setError('Please enter a valid 10-digit Nepali mobile number (starting with 9).');
+      setIsProcessing(false);
+      return;
+    }
+
     try {
       const { orderId } = await orderApi.create({
         items: items.map((i) => ({
@@ -139,13 +157,33 @@ export default function Checkout() {
               <Field label="Email Address" required type="email" value={formData.email} onChange={(v) => setFormData({ ...formData, email: v })} />
               <div className="grid grid-cols-2 gap-4">
                 <Field label="First Name" required value={formData.firstName} onChange={(v) => setFormData({ ...formData, firstName: v })} />
-                <Field label="Last Name" value={formData.lastName} onChange={(v) => setFormData({ ...formData, lastName: v })} />
+                <Field label="Last Name" required value={formData.lastName} onChange={(v) => setFormData({ ...formData, lastName: v })} />
               </div>
-              <Field label="Phone Number" required type="tel" value={formData.phone} onChange={(v) => setFormData({ ...formData, phone: v })} />
-              <Field label="Delivery Address" required value={formData.address} onChange={(v) => setFormData({ ...formData, address: v })} />
+              <Field label="Phone Number" required type="tel" placeholder="98XXXXXXXX" value={formData.phone} onChange={(v) => setFormData({ ...formData, phone: v })} />
+              <Field label="Full Delivery Address" required placeholder="e.g. House No, Street Name, Area" value={formData.address} onChange={(v) => setFormData({ ...formData, address: v })} />
+              
+              <div className="space-y-1.5 pt-2">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Delivery Location (for shipping fee)</label>
+                <div className="flex items-center gap-4 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShippingLocation('ktm')}
+                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${shippingLocation === 'ktm' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Inside Kathmandu Valley
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShippingLocation('outside')}
+                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${shippingLocation === 'outside' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Outside Valley
+                  </button>
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="City" value={formData.city} onChange={(v) => setFormData({ ...formData, city: v })} />
-                <Field label="ZIP / Postal Code" value={formData.zip} onChange={(v) => setFormData({ ...formData, zip: v })} />
+                <Field label="City / Town" required placeholder="e.g. Lalitpur" value={formData.city} onChange={(v) => setFormData({ ...formData, city: v })} />
+                <Field label="ZIP / Area Code" required placeholder="e.g. 44600" value={formData.zip} onChange={(v) => setFormData({ ...formData, zip: v })} />
               </div>
             </div>
           </section>
@@ -156,7 +194,7 @@ export default function Checkout() {
               <div>
                 <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                   <MapPin className="w-5 h-5 text-blue-600" />
-                  Delivery Location
+                  Delivery Location <span className="text-rose-500 font-bold ml-1">*</span>
                 </h2>
                 <p className="text-xs text-slate-400 mt-1 font-medium">
                   Tap the map or use your current location to pin the exact delivery point.
@@ -256,7 +294,7 @@ export default function Checkout() {
                     <p className="text-xs text-blue-700 font-medium mb-1">by {item.author}</p>
                     <div className="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400 tracking-tight">
                       <span>Qty: {item.quantity}</span>
-                      <span className="text-slate-900">${(item.price * item.quantity).toFixed(2)}</span>
+                      <span className="text-slate-900">Rs.{(item.price * item.quantity).toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -266,7 +304,7 @@ export default function Checkout() {
             <div className="space-y-4 pt-8 border-t border-slate-100 mb-8">
               <div className="flex justify-between text-slate-500 text-sm font-medium">
                 <span>Subtotal</span>
-                <span className="font-bold text-slate-900">${total.toFixed(2)}</span>
+                <span className="font-bold text-slate-900">Rs.{total.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-slate-500 text-sm font-medium">
                 <span>Shipping</span>
@@ -274,7 +312,19 @@ export default function Checkout() {
               </div>
               <div className="flex justify-between items-center pt-8 border-t border-slate-100">
                 <span className="text-lg font-bold text-slate-900">Total Due</span>
-                <span className="text-3xl font-bold text-slate-900">${finalTotal.toFixed(2)}</span>
+                <span className="text-3xl font-bold text-slate-900">Rs.{finalTotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="space-y-4 mb-8">
+              <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <DollarSign className="w-5 h-5 text-blue-600 shrink-0" />
+                <div>
+                  <p className="text-[10px] uppercase font-bold tracking-widest text-blue-700">
+                    Payment Method
+                  </p>
+                  <p className="text-xs font-bold text-slate-900">Cash on Delivery (COD)</p>
+                </div>
               </div>
             </div>
 
@@ -295,12 +345,14 @@ function Field({
   label,
   required,
   type = 'text',
+  placeholder,
   value,
   onChange,
 }: {
   label: string;
   required?: boolean;
   type?: string;
+  placeholder?: string;
   value: string;
   onChange: (v: string) => void;
 }) {
@@ -312,9 +364,10 @@ function Field({
       <input
         required={required}
         type={type}
+        placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-slate-900"
+        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-slate-900 text-sm"
       />
     </div>
   );

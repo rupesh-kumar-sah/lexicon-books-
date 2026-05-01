@@ -111,7 +111,7 @@ export default function BookDetail() {
             <p className="text-xl text-blue-700 font-medium">by {book.author}</p>
           </div>
 
-          <div className="text-4xl font-bold mb-10 text-slate-900">${book.price.toFixed(2)}</div>
+          <div className="text-4xl font-bold mb-10 text-slate-900">Rs.{book.price.toFixed(2)}</div>
 
           <div className="space-y-8 mb-12">
             <div className="flex items-center space-x-6">

@@ -110,4 +110,16 @@ export interface SiteSettings {
   accentColor: string;
   heroImage: string;
   updatedAt?: number;
+  shippingKtm: number;
+  shippingOutside: number;
+  freeShippingThreshold: number;
+  footerText1: string;
+  footerText2: string;
+  footerText3: string;
+  footerLink1: string;
+  footerLink2: string;
+  footerCompany: string;
+  privacyContent: string;
+  termsContent: string;
+  adminPin: string;
 }

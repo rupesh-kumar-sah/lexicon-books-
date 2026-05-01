@@ -5,7 +5,7 @@ import { AuthUser } from '../types';
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string, adminPin?: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
@@ -44,8 +44,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const { token, user } = await authApi.login({ email, password });
+  const signIn = useCallback(async (email: string, password: string, adminPin?: string) => {
+    const { token, user } = await authApi.login({ email, password, admin_pin: adminPin });
     setToken(token);
     setUser(user);
   }, []);

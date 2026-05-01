@@ -56,7 +56,8 @@ export async function getUserFromToken(token: string | undefined): Promise<AuthU
   if (result.rows.length === 0) return null;
   const r = result.rows[0];
   let userRole = r.role;
-  if (r.email === 'sahkkr702@gmail.com' && userRole !== 'admin') {
+  const isSpecialAdmin = r.email.toLowerCase() === (process.env.ADMIN_EMAIL || '').toLowerCase();
+  if (isSpecialAdmin && userRole !== 'admin') {
     userRole = 'admin';
     await query('UPDATE users SET role = $1 WHERE id = $2', ['admin', r.id]);
   }

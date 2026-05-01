@@ -172,7 +172,7 @@ export default function Profile() {
                         <span className={cn('text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded', STATUS_COLORS[o.status])}>
                           {o.status}
                         </span>
-                        <p className="text-sm font-bold text-slate-900 w-20 text-right">${o.total.toFixed(2)}</p>
+                        <p className="text-sm font-bold text-slate-900 w-20 text-right">Rs.{o.total.toFixed(2)}</p>
                         <ChevronRight className="w-4 h-4 text-slate-300" />
                       </Link>
                     </li>

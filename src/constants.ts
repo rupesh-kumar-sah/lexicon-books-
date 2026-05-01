@@ -11,6 +11,6 @@ export const GENRES = [
   'Poetry'
 ];
 
-export const APP_NAME = 'lexiconn books';
+export const APP_NAME = 'booksellnp';
 export const SHIPPING_FEE = 150;
 export const FREE_SHIPPING_THRESHOLD = 5000;

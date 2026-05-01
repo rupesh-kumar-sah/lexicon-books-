@@ -9,62 +9,85 @@ type OrderStatus = (typeof ALLOWED_STATUSES)[number];
 
 router.get('/stats', requireAdmin, async (_req, res) => {
   try {
-    const [books, users, orders, revenue, lowStock, topGenres, recentOrders, dailyOrders, statusCounts] =
-      await Promise.all([
-        query<{ count: string }>('SELECT COUNT(*)::text AS count FROM books'),
-        query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users'),
-        query<{ count: string }>('SELECT COUNT(*)::text AS count FROM orders'),
-        query<{ sum: string | null }>(
-          `SELECT COALESCE(SUM(total), 0)::text AS sum FROM orders WHERE status <> 'cancelled'`
-        ),
-        query<{ count: string }>('SELECT COUNT(*)::text AS count FROM books WHERE stock <= 5'),
-        query<{ genre: string; count: string }>(
-          `SELECT genre, COUNT(*)::text AS count FROM books GROUP BY genre ORDER BY COUNT(*) DESC LIMIT 6`
-        ),
-        query<any>(
-          `SELECT id, customer_name, customer_email, total, status, created_at, items_json
-           FROM orders ORDER BY created_at DESC LIMIT 5`
-        ),
-        query<{ day: string; count: string; revenue: string }>(
-          `SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
-                  COUNT(*)::text AS count,
-                  COALESCE(SUM(total), 0)::text AS revenue
-           FROM orders
-           WHERE created_at >= NOW() - INTERVAL '14 days'
-           GROUP BY day
-           ORDER BY day`
-        ),
-        query<{ status: string; count: string }>(
-          `SELECT status, COUNT(*)::text AS count FROM orders GROUP BY status`
-        ),
-      ]);
+    const cacheKey = 'admin:stats';
+    const cached = await getCache<any>(cacheKey);
+    if (cached) return res.json(cached);
 
-    res.json({
-      totalBooks: Number(books.rows[0].count),
-      totalUsers: Number(users.rows[0].count),
-      totalOrders: Number(orders.rows[0].count),
-      totalRevenue: Number(revenue.rows[0].sum || 0),
-      lowStockCount: Number(lowStock.rows[0].count),
-      topGenres: topGenres.rows.map((r) => ({ genre: r.genre, count: Number(r.count) })),
-      recentOrders: recentOrders.rows.map((r) => ({
-        id: r.id,
-        customerName: r.customer_name,
-        customerEmail: r.customer_email,
-        total: Number(r.total),
-        status: r.status,
-        itemCount: Array.isArray(r.items_json) ? r.items_json.length : 0,
-        createdAt: new Date(r.created_at).getTime(),
+    // SINGLE-PASS AGGREGATION & CROSS-TABLE JOIN
+    // This query performs exactly ONE scan of the orders table to compute all metrics
+    const sql = `
+      WITH order_metrics AS (
+        SELECT 
+          COUNT(*)::int AS total_orders,
+          COALESCE(SUM(total) FILTER (WHERE status <> 'cancelled'), 0) AS total_revenue,
+          COUNT(*) FILTER (WHERE status = 'pending')::int AS pending_count,
+          COUNT(*) FILTER (WHERE status = 'processing')::int AS processing_count,
+          COUNT(*) FILTER (WHERE status = 'shipped')::int AS shipped_count,
+          COUNT(*) FILTER (WHERE status = 'delivered')::int AS delivered_count,
+          COUNT(*) FILTER (WHERE status = 'cancelled')::int AS cancelled_count
+        FROM orders
+      ),
+      book_metrics AS (
+        SELECT 
+          COUNT(*)::int AS total_books,
+          COUNT(*) FILTER (WHERE stock <= 5)::int AS low_stock_count
+        FROM books
+      ),
+      user_metrics AS (
+        SELECT COUNT(*)::int AS total_users FROM users
+      ),
+      top_genres AS (
+        SELECT json_agg(t) FROM (
+          SELECT genre, COUNT(*)::int as count 
+          FROM books GROUP BY genre ORDER BY count DESC LIMIT 6
+        ) t
+      ),
+      recent_orders AS (
+        SELECT json_agg(o) FROM (
+          SELECT id, customer_name, customer_email, total, status, created_at
+          FROM orders ORDER BY created_at DESC LIMIT 5
+        ) o
+      )
+      SELECT 
+        m.*, b.*, u.*, 
+        tg.json_agg as genres, 
+        ro.json_agg as recent 
+      FROM order_metrics m
+      CROSS JOIN book_metrics b
+      CROSS JOIN user_metrics u
+      CROSS JOIN top_genres tg
+      CROSS JOIN recent_orders ro
+    `;
+
+    const result = await query<any>(sql);
+    const r = result.rows[0];
+
+    const data = {
+      totalBooks: r.total_books,
+      totalUsers: r.total_users,
+      totalOrders: r.total_orders,
+      totalRevenue: Number(r.total_revenue),
+      lowStockCount: r.low_stock_count,
+      topGenres: r.genres || [],
+      recentOrders: (r.recent || []).map((o: any) => ({
+        id: o.id,
+        customerName: o.customer_name,
+        customerEmail: o.customer_email,
+        total: Number(o.total),
+        status: o.status,
+        createdAt: new Date(o.created_at).getTime(),
       })),
-      dailyOrders: dailyOrders.rows.map((r) => ({
-        day: r.day,
-        count: Number(r.count),
-        revenue: Number(r.revenue),
-      })),
-      statusCounts: statusCounts.rows.reduce((acc, r) => {
-        acc[r.status] = Number(r.count);
-        return acc;
-      }, {} as Record<string, number>),
-    });
+      statusCounts: {
+        pending: r.pending_count,
+        processing: r.processing_count,
+        shipped: r.shipped_count,
+        delivered: r.delivered_count,
+        cancelled: r.cancelled_count,
+      },
+    };
+
+    await setCache(cacheKey, data, 300); // 5 min cache
+    res.json(data);
   } catch (e: any) {
     console.error('admin stats error', e);
     res.status(500).json({ error: 'Failed to load stats' });
@@ -241,6 +264,18 @@ router.get('/settings', async (_req, res) => {
         primaryColor: r.primary_color,
         accentColor: r.accent_color,
         heroImage: r.hero_image,
+        shippingKtm: Number(r.shipping_ktm || 100),
+        shippingOutside: Number(r.shipping_outside || 150),
+        freeShippingThreshold: Number(r.free_shipping_threshold || 5000),
+        footerText1: r.footer_text_1 || 'Secure SSL Checkout',
+        footerText2: r.footer_text_2 || '30-Day Easy Returns',
+        footerText3: r.footer_text_3 || 'Global Shipping Available',
+        footerLink1: r.footer_link_1 || 'Privacy',
+        footerLink2: r.footer_link_2 || 'Terms',
+        footerCompany: r.footer_company || 'BOOKSELLNP MEDIA GROUP',
+        privacyContent: r.privacy_content || '# Privacy Policy\n\nYour privacy is important to us...',
+        termsContent: r.terms_content || '# Terms of Service\n\nBy using our service, you agree...',
+        adminPin: r.admin_pin || '2063',
         updatedAt: new Date(r.updated_at).getTime(),
       },
     });
@@ -252,7 +287,7 @@ router.get('/settings', async (_req, res) => {
 
 router.put('/settings', requireAdmin, async (req, res) => {
   try {
-    const { siteName, tagline, primaryColor, accentColor, heroImage } = req.body || {};
+    const { siteName, tagline, primaryColor, accentColor, heroImage, shippingKtm, shippingOutside, freeShippingThreshold, footerText1, footerText2, footerText3, footerLink1, footerLink2, footerCompany, privacyContent, termsContent, adminPin } = req.body || {};
     const isHex = (s: any) => typeof s === 'string' && /^#[0-9a-fA-F]{6}$/.test(s);
     if (!siteName || !tagline) return res.status(400).json({ error: 'Site name and tagline are required' });
     if (!isHex(primaryColor) || !isHex(accentColor)) {
@@ -261,9 +296,9 @@ router.put('/settings', requireAdmin, async (req, res) => {
     await query(
       `UPDATE site_settings
        SET site_name = $1, tagline = $2, primary_color = $3, accent_color = $4,
-           hero_image = $5, updated_at = NOW()
+           hero_image = $5, shipping_ktm = $6, shipping_outside = $7, free_shipping_threshold = $8, footer_text_1 = $9, footer_text_2 = $10, footer_text_3 = $11, footer_link_1 = $12, footer_link_2 = $13, footer_company = $14, privacy_content = $15, terms_content = $16, admin_pin = $17, updated_at = NOW()
        WHERE id = 'default'`,
-      [siteName, tagline, primaryColor, accentColor, heroImage || '']
+      [siteName, tagline, primaryColor, accentColor, heroImage || '', Number(shippingKtm || 100), Number(shippingOutside || 150), Number(freeShippingThreshold || 5000), footerText1 || 'Secure SSL Checkout', footerText2 || '30-Day Easy Returns', footerText3 || 'Global Shipping Available', footerLink1 || 'Privacy', footerLink2 || 'Terms', footerCompany || 'BOOKSELLNP MEDIA GROUP', privacyContent || '', termsContent || '', adminPin || '2063']
     );
     res.json({ ok: true });
   } catch (e: any) {

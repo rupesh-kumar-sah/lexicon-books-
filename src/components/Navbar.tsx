@@ -27,7 +27,8 @@ export default function Navbar() {
     <nav className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 flex-shrink-0 z-50 relative">
       <div className="flex justify-between items-center w-full">
         <div className="flex items-center gap-8">
-          <Link to="/" className="flex items-center gap-1 group">
+          <Link to="/" className="flex items-center gap-3 group">
+            <img src="/logo.png" alt="" className="w-8 h-8 object-contain" />
             <div
               className="text-xl md:text-2xl font-bold tracking-tighter uppercase"
               style={{ color: 'var(--brand-primary)' }}

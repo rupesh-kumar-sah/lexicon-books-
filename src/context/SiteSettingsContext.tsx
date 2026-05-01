@@ -3,11 +3,23 @@ import { adminApi } from '../lib/api';
 import type { SiteSettings } from '../types';
 
 const DEFAULTS: SiteSettings = {
-  siteName: 'Lexiconn Books',
+  siteName: 'BookSellNP',
   tagline: 'Curated Selections for the Modern Mind.',
   primaryColor: '#2563eb',
   accentColor: '#0f172a',
   heroImage: '',
+  shippingKtm: 100,
+  shippingOutside: 150,
+  freeShippingThreshold: 5000,
+  footerText1: 'Secure SSL Checkout',
+  footerText2: '30-Day Easy Returns',
+  footerText3: 'Global Shipping Available',
+  footerLink1: 'Privacy',
+  footerLink2: 'Terms',
+  footerCompany: 'BOOKSELLNP MEDIA GROUP',
+  privacyContent: '# Privacy Policy\n\nYour privacy is important to us...',
+  termsContent: '# Terms of Service\n\nBy using our service, you agree...',
+  adminPin: '2063',
 };
 
 interface Ctx {
@@ -34,9 +46,11 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
     try {
       const { settings: s } = await adminApi.getSettings();
       if (s) {
-        setSettings(s);
-        applyToCssVars(s);
-        document.title = s.siteName;
+        // Always merge with DEFAULTS so missing DB fields never cause undefined errors
+        const merged: SiteSettings = { ...DEFAULTS, ...s };
+        setSettings(merged);
+        applyToCssVars(merged);
+        document.title = merged.siteName;
       }
     } catch {
       // ignore — fall back to defaults

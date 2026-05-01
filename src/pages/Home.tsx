@@ -266,7 +266,6 @@ export default function Home() {
             { icon: BookOpen, title: 'Curated', desc: 'Expert picks only' },
             { icon: Truck, title: 'Global', desc: 'Express shipping' },
             { icon: ShieldCheck, title: 'Secure', desc: 'SSL protected' },
-            { icon: RotateCcw, title: 'Easy', desc: '30-day returns' },
           ].map((item, i) => (
             <div key={i} className="flex gap-4 items-center">
               <div className="p-3 bg-blue-50 text-blue-700 rounded-full">

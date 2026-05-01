@@ -15,7 +15,6 @@ import {
   ShieldAlert,
   Loader as Loader2,
   Star as StarIcon,
-  Terminal,
   ShoppingBag,
   TrendingUp,
   Users as UsersIcon,
@@ -27,6 +26,8 @@ import {
   Save,
   ShieldCheck,
   Mail,
+  Phone,
+  MapPin,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -145,13 +146,7 @@ export default function Admin() {
         </div>
 
         <div className="mt-auto p-8 border-t border-slate-100 space-y-2">
-          <Link
-            to="/sql"
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-100 hover:text-blue-700 transition-colors"
-          >
-            <Terminal className="w-4 h-4" />
-            <span>SQL Editor</span>
-          </Link>
+
           <button className="w-full flex items-center space-x-3 px-4 py-3 text-sm font-bold text-slate-400 hover:text-blue-700 transition-colors">
             <Settings className="w-4 h-4" />
             <span>Settings</span>
@@ -166,7 +161,7 @@ export default function Admin() {
               {titles[activeTab]}
             </h1>
             <p className="text-slate-400 text-sm font-medium">
-              Manage your Lexiconn Books storefront.
+              Manage your BookSellNP storefront.
             </p>
           </div>
           {activeTab === 'inventory' && (
@@ -400,7 +395,7 @@ function DashboardView() {
                 <div className={cn('text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-md border', STATUS_COLORS[o.status])}>
                   {o.status}
                 </div>
-                <p className="font-bold text-slate-900 w-20 text-right">${o.total.toFixed(2)}</p>
+                <p className="font-bold text-slate-900 w-20 text-right">Rs.{o.total.toFixed(2)}</p>
               </div>
             ))}
           </div>
@@ -528,7 +523,7 @@ function OrdersView() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold text-slate-900">${o.total.toFixed(2)}</p>
+                    <p className="text-lg font-bold text-slate-900">Rs.{o.total.toFixed(2)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <select
@@ -568,40 +563,106 @@ function OrdersView() {
                       exit={{ opacity: 0, height: 0 }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-4 pt-4 border-t border-slate-100 grid md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-                            Items
-                          </p>
-                          <ul className="space-y-2">
-                            {o.items.map((it: any, i: number) => (
-                              <li key={i} className="flex items-center gap-3 text-sm">
-                                <img
-                                  src={it.coverImage}
-                                  alt=""
-                                  className="w-8 h-10 object-cover rounded border border-slate-200"
-                                  referrerPolicy="no-referrer"
-                                />
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-slate-900 truncate">{it.title}</p>
-                                  <p className="text-xs text-slate-400">{it.author}</p>
+                      <div className="mt-4 pt-4 border-t border-slate-100 space-y-6">
+                        {o.status === 'cancelled' && (
+                          <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-600 text-xs font-bold flex items-center gap-2">
+                            <Trash2 className="w-4 h-4" />
+                            This order has been cancelled and any reserved stock has been returned.
+                          </div>
+                        )}
+                        
+                        <div className="grid md:grid-cols-3 gap-6">
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Shipping To</p>
+                            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                              <p className="font-bold text-slate-900 text-sm mb-1">{o.customerName}</p>
+                              <p className="text-xs text-slate-600 leading-relaxed mb-3">{o.shippingAddress}</p>
+                              <div className="flex items-center gap-2 text-xs font-bold text-blue-600">
+                                <Phone className="w-3.5 h-3.5" />
+                                {o.customerPhone || 'No phone provided'}
+                              </div>
+                              <p className="text-[10px] text-slate-400 mt-4 uppercase tracking-tighter">Placed on {new Date(o.createdAt).toLocaleString()}</p>
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Payment Summary</p>
+                            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Subtotal</span>
+                                <span className="font-bold text-slate-900">Rs.{o.subtotal.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Shipping</span>
+                                <span className="font-bold text-slate-900">Rs.{o.shipping.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between pt-2 border-t border-slate-200">
+                                <span className="font-bold text-slate-900">Total</span>
+                                <span className="font-bold text-blue-700">Rs.{o.total.toFixed(2)}</span>
+                              </div>
+                            </div>
+
+                            {o.locationCoords ? (
+                              <div className="mt-6">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Pinned Delivery Location</p>
+                                <div className="bg-slate-50 rounded-2xl overflow-hidden border border-slate-100">
+                                  <div className="aspect-video bg-slate-200 relative group">
+                                    <img 
+                                      src={`https://maps.googleapis.com/maps/api/staticmap?center=${o.locationCoords.lat},${o.locationCoords.lng}&zoom=15&size=400x250&markers=color:red%7C${o.locationCoords.lat},${o.locationCoords.lng}&key=${(import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY}`}
+                                      alt="Delivery Location Map"
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                        (e.target as HTMLImageElement).parentElement!.classList.add('flex', 'items-center', 'justify-center', 'text-slate-400', 'text-[10px]');
+                                        (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="text-center p-4">Google Maps Key Error or Static Map API Disabled</div>';
+                                      }}
+                                    />
+                                    <a 
+                                      href={`https://www.google.com/maps?q=${o.locationCoords.lat},${o.locationCoords.lng}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2"
+                                    >
+                                      <MapPin className="w-4 h-4" />
+                                      Open in Google Maps
+                                    </a>
+                                  </div>
+                                  <div className="p-3 text-[10px] font-bold text-slate-400 text-center uppercase tracking-widest">
+                                    Coords: {o.locationCoords.lat.toFixed(5)}, {o.locationCoords.lng.toFixed(5)}
+                                  </div>
                                 </div>
-                                <span className="text-xs font-bold text-slate-700">
-                                  {it.quantity} × ${Number(it.price).toFixed(2)}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-                            Shipping Address
-                          </p>
-                          <p className="text-sm text-slate-700 leading-relaxed">{o.shippingAddress}</p>
-                          <div className="mt-4 space-y-1 text-sm">
-                            <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="font-bold text-slate-900">${o.subtotal.toFixed(2)}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-500">Shipping</span><span className="font-bold text-slate-900">${o.shipping.toFixed(2)}</span></div>
-                            <div className="flex justify-between pt-2 border-t border-slate-100"><span className="font-bold text-slate-900">Total</span><span className="font-bold text-blue-700">${o.total.toFixed(2)}</span></div>
+                              </div>
+                            ) : (
+                              <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                No coordinate data for this order
+                              </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Items ({o.items.length})</p>
+                            <ul className="space-y-3">
+                              {o.items.map((it: any, i: number) => (
+                                <li key={i} className="flex gap-3 bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm transition-all hover:shadow-md">
+                                  <img
+                                    src={it.coverImage}
+                                    alt=""
+                                    className="w-10 h-14 object-cover rounded border border-slate-100 shadow-sm"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-slate-900 text-xs truncate leading-tight mb-0.5">{it.title}</p>
+                                    <p className="text-[10px] text-slate-400 mb-2 truncate">{it.author}</p>
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-[10px] font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded">
+                                        Qty: {it.quantity}
+                                      </span>
+                                      <span className="text-xs font-bold text-blue-700">Rs.{(it.price * it.quantity).toFixed(2)}</span>
+                                    </div>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
                         </div>
                       </div>
@@ -702,24 +763,44 @@ function BookEntryModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Cover Image URL</label>
-            <div className="flex gap-4">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Cover Image (URL or Upload)</label>
+            <div className="flex gap-3 items-center">
               <input
-                required
-                type="url"
-                value={formData.coverImage || ''}
+                type="text"
+                value={formData.coverImage?.startsWith('data:') ? '(uploaded image)' : formData.coverImage || ''}
                 onChange={(e) => setFormData({ ...formData, coverImage: e.target.value })}
-                placeholder="https://..."
+                placeholder="https://... or click Upload"
                 className="flex-1 px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-medium"
               />
-              <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+              <label className="shrink-0 px-4 py-3 bg-blue-50 text-blue-600 font-bold text-xs rounded-xl hover:bg-blue-100 transition-colors cursor-pointer border border-blue-200 flex items-center gap-2">
+                <ImageIcon className="w-4 h-4" />
+                Upload
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                      setFormData((prev) => ({ ...prev, coverImage: evt.target?.result as string }));
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </label>
+              <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center shadow-sm">
                 {formData.coverImage ? (
-                  <img src={formData.coverImage} className="w-full h-full object-cover" alt="" referrerPolicy="no-referrer" />
+                  <img src={formData.coverImage} className="w-full h-full object-cover" alt="Preview" referrerPolicy="no-referrer" />
                 ) : (
                   <ImageIcon className="w-5 h-5 text-slate-300" />
                 )}
               </div>
             </div>
+            {formData.coverImage?.startsWith('data:') && (
+              <p className="text-[10px] text-emerald-600 font-bold ml-1">✓ Image uploaded successfully</p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -969,7 +1050,7 @@ function InventoryView({ onEdit }: { key?: React.Key | string | number; onEdit: 
                       <span className="text-[10px] font-bold text-slate-900 uppercase">{book.stock} units</span>
                     </div>
                   </td>
-                  <td className="px-8 py-6 font-bold text-sm text-slate-900">${book.price.toFixed(2)}</td>
+                  <td className="px-8 py-6 font-bold text-sm text-slate-900">Rs.{book.price.toFixed(2)}</td>
                   <td className="px-8 py-6">
                     <div className="flex items-center text-blue-600">
                       <StarIcon className="w-3 h-3 fill-current mr-1" />
@@ -1143,7 +1224,7 @@ function UsersView() {
                   <div className="text-right hidden md:block">
                     <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Spend</p>
                     <p className="text-sm font-bold text-slate-900">
-                      ${u.totalSpent.toFixed(2)} <span className="text-slate-400 font-medium">· {u.orderCount} orders</span>
+                      Rs.{u.totalSpent.toFixed(2)} <span className="text-slate-400 font-medium">· {u.orderCount} orders</span>
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1286,6 +1367,63 @@ function ThemesView() {
             <div className="grid md:grid-cols-2 gap-4">
               <ColorField label="Primary" value={form.primaryColor} onChange={(v) => update('primaryColor', v)} />
               <ColorField label="Accent" value={form.accentColor} onChange={(v) => update('accentColor', v)} />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Shipping Fees & Policies (Rs.)</p>
+            <div className="grid md:grid-cols-3 gap-4">
+              <Field label="Inside Kathmandu" type="number" min="0" value={String(form.shippingKtm)} onChange={(v) => update('shippingKtm', Number(v))} />
+              <Field label="Outside Valley" type="number" min="0" value={String(form.shippingOutside)} onChange={(v) => update('shippingOutside', Number(v))} />
+              <Field label="Free Shipping Over" type="number" min="0" value={String(form.freeShippingThreshold)} onChange={(v) => update('freeShippingThreshold', Number(v))} />
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Admin Security</p>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Field 
+                label="Admin Login PIN" 
+                type="text" 
+                value={form.adminPin} 
+                onChange={(v) => update('adminPin', v.replace(/\D/g, '').slice(0, 4))} 
+                placeholder="4-digit PIN"
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-2 italic">This PIN is required for all administrator logins.</p>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Legal Pages (Markdown supported)</p>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Privacy Policy</label>
+                <textarea
+                  value={form.privacyContent}
+                  onChange={(e) => update('privacyContent', e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-medium h-32 resize-y"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Terms of Service</label>
+                <textarea
+                  value={form.termsContent}
+                  onChange={(e) => update('termsContent', e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-medium h-32 resize-y"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Footer Texts</p>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Field label="Security Badge Text" value={form.footerText1} onChange={(v) => update('footerText1', v)} />
+              <Field label="Return Policy Text" value={form.footerText2} onChange={(v) => update('footerText2', v)} />
+              <Field label="Shipping Info Text" value={form.footerText3} onChange={(v) => update('footerText3', v)} />
+              <Field label="Company Name" value={form.footerCompany} onChange={(v) => update('footerCompany', v)} />
+              <Field label="Privacy Link Text" value={form.footerLink1} onChange={(v) => update('footerLink1', v)} />
+              <Field label="Terms Link Text" value={form.footerLink2} onChange={(v) => update('footerLink2', v)} />
             </div>
           </div>
 
