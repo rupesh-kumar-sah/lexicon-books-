@@ -7,13 +7,18 @@ const router = Router();
 
 // Optimized Select: Uses subqueries which are significantly faster for paginated/filtered results
 const BOOK_BASE_SELECT = `
-  SELECT b.id, b.title, b.author, b.description, b.price, b.cover_image, b.isbn, b.genre, b.stock, b.rating, b.year, b.featured, b.created_at,
+  SELECT b.id, b.title, b.author, b.price, b.cover_image, b.isbn, b.genre, b.stock, b.rating, b.year, b.featured, b.created_at,
          (SELECT COUNT(*)::int FROM reviews r WHERE r.book_id = b.id) AS review_count,
          (SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.book_id = b.id) AS avg_rating
   FROM books b
 `;
 
-const BOOK_DETAIL_SELECT = BOOK_BASE_SELECT;
+const BOOK_DETAIL_SELECT = `
+  SELECT b.id, b.title, b.author, b.description, b.price, b.cover_image, b.isbn, b.genre, b.stock, b.rating, b.year, b.featured, b.created_at,
+         (SELECT COUNT(*)::int FROM reviews r WHERE r.book_id = b.id) AS review_count,
+         (SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.book_id = b.id) AS avg_rating
+  FROM books b
+`;
 
 function rowToBook(r: any) {
   const reviewCount = Number(r.review_count || 0);

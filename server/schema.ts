@@ -94,7 +94,7 @@ const STATEMENTS: string[] = [
     shipping_outside NUMERIC(10,2) NOT NULL DEFAULT 150,
     free_shipping_threshold NUMERIC(10,2) NOT NULL DEFAULT 5000,
     footer_text_1 TEXT NOT NULL DEFAULT 'Secure SSL Checkout',
-    footer_text_2 TEXT NOT NULL DEFAULT 'Premium Quality',
+    footer_text_2 TEXT NOT NULL DEFAULT '30-Day Easy Returns',
     footer_text_3 TEXT NOT NULL DEFAULT 'Global Shipping Available',
     footer_link_1 TEXT NOT NULL DEFAULT 'Privacy',
     footer_link_2 TEXT NOT NULL DEFAULT 'Terms',

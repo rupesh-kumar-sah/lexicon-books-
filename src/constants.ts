@@ -8,7 +8,8 @@ export const GENRES = [
   'History',
   'Self-Help',
   'Philosophy',
-  'Poetry'
+  'Poetry',
+  'Old is Gold'
 ];
 
 export const APP_NAME = 'booksellnp';

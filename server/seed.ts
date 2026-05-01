@@ -158,9 +158,61 @@ const INITIAL_BOOKS = [
     year: 1988,
     featured: false,
   },
+  {
+    title: 'Old is Gold: Class 12 Science (NEB)',
+    author: 'Asmita Publication',
+    description: 'The definitive collection of past exam papers and model questions for Class 12 Science students in Nepal. Includes solutions and detailed explanations.',
+    price: 450.0,
+    coverImage: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&q=80&w=800',
+    isbn: 'OG-NEB-12-SCI',
+    genre: 'Old is Gold',
+    stock: 100,
+    rating: 4.9,
+    year: 2024,
+    featured: true,
+  },
+  {
+    title: 'Old is Gold: SEE Collection (All Subjects)',
+    author: 'Readmore Publishers',
+    description: 'Comprehensive set of past 10 years SEE question papers with solved answers. Essential for secondary level students in Nepal.',
+    price: 350.0,
+    coverImage: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&q=80&w=800',
+    isbn: 'OG-SEE-ALL',
+    genre: 'Old is Gold',
+    stock: 150,
+    rating: 4.8,
+    year: 2024,
+    featured: true,
+  },
+  {
+    title: 'Old is Gold: BBS 1st Year (Management)',
+    author: 'Asmita Publication',
+    description: 'Previous year questions for BBS 1st Year students. Includes Accountancy, Economics, and Business Mathematics.',
+    price: 425.0,
+    coverImage: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=800',
+    isbn: 'OG-BBS-1',
+    genre: 'Old is Gold',
+    stock: 75,
+    rating: 4.7,
+    year: 2023,
+    featured: false,
+  },
 ];
 
 export async function seedIfEmpty() {
-  // Seeding disabled to avoid creating demo products
-  console.log('[seed] Seeding is disabled.');
+  const result = await query<{ count: string }>('SELECT COUNT(*)::text AS count FROM books');
+  if (result.rows[0].count !== '0') {
+    console.log(`[seed] database not empty (${result.rows[0].count} books) — skipping seed.`);
+    return;
+  }
+  
+  console.log('[seed] books table empty — seeding initial catalog');
+  for (const b of INITIAL_BOOKS) {
+    await query(
+      `INSERT INTO books (id, title, author, description, price, cover_image, isbn, genre, stock, rating, year, featured)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [newId(), b.title, b.author, b.description, b.price, b.coverImage, b.isbn, b.genre, b.stock, b.rating, b.year, b.featured]
+    );
+  }
+  console.log(`[seed] inserted ${INITIAL_BOOKS.length} books`);
 }

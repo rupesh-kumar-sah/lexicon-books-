@@ -49,10 +49,10 @@ export default function Home() {
       bookApi.genres(),
     ])
       .then(([featured, popular, all, g]) => {
-        if (featured && featured.books) setFeaturedBooks(featured.books);
-        if (popular && popular.books) setPopularBooks(popular.books);
-        if (all && all.books) setAllBooks(all.books);
-        if (g && g.genres) setGenres(g.genres);
+        setFeaturedBooks(featured.books);
+        setPopularBooks(popular.books);
+        setAllBooks(all.books);
+        setGenres(g.genres);
       })
       .catch((e) => console.error('home load failed', e))
       .finally(() => setLoading(false));
@@ -101,7 +101,7 @@ export default function Home() {
                   onClick={openAuthModal}
                   className="px-8 py-4 border border-slate-200 bg-white text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all"
                 >
-                  Join {(settings?.siteName || 'BookSellNP').split(' ')[0]}
+                  Join {settings.siteName.split(' ')[0]}
                 </button>
               )}
             </div>
@@ -266,6 +266,7 @@ export default function Home() {
             { icon: BookOpen, title: 'Curated', desc: 'Expert picks only' },
             { icon: Truck, title: 'Global', desc: 'Express shipping' },
             { icon: ShieldCheck, title: 'Secure', desc: 'SSL protected' },
+            { icon: RotateCcw, title: 'Easy', desc: '30-day returns' },
           ].map((item, i) => (
             <div key={i} className="flex gap-4 items-center">
               <div className="p-3 bg-blue-50 text-blue-700 rounded-full">
