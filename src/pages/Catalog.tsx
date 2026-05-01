@@ -63,7 +63,11 @@ export default function Catalog() {
         genre: selectedGenres.length === 1 ? selectedGenres[0] : undefined,
         limit: 200,
       })
-      .then(({ books }) => setBooks(books))
+      .then((res) => {
+        if (res && Array.isArray(res.books)) {
+          setBooks(res.books);
+        }
+      })
       .catch((e) => console.error('catalog load', e))
       .finally(() => setLoading(false));
   }, [searchTerm, sortBy, selectedGenres]);

@@ -210,7 +210,11 @@ function DashboardView() {
     setLoading(true);
     adminApi
       .stats()
-      .then(setStats)
+      .then((res) => {
+        if (res && typeof res.totalRevenue === 'number') {
+          setStats(res);
+        }
+      })
       .catch((e) => setError(e.message || 'Failed to load analytics'))
       .finally(() => setLoading(false));
   }, []);
@@ -428,7 +432,11 @@ function OrdersView() {
         search: search || undefined,
         limit: 200,
       })
-      .then(({ orders }) => setOrders(orders))
+      .then((res) => {
+        if (res && Array.isArray(res.orders)) {
+          setOrders(res.orders);
+        }
+      })
       .catch((e) => toast.error(e.message || 'Failed to load orders'))
       .finally(() => setLoading(false));
   };

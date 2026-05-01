@@ -43,7 +43,7 @@ export default function AIAssistant() {
     setIsLoading(true);
 
     try {
-      const apiKey = (import.meta as any).env.VITE_GROQ_API_KEY || (process.env as any).GROQ_API_KEY;
+      const apiKey = (import.meta as any).env?.VITE_GROQ_API_KEY || (process.env as any)?.GROQ_API_KEY;
       
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',

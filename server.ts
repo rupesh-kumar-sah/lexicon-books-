@@ -66,14 +66,14 @@ async function startServer() {
   }));
 
   // Data Sanitization
-  const hpp = (await import('hpp')).default();
-  const xss = (await import('xss-clean')).default();
-  const mongoSanitize = (await import('express-mongo-sanitize')).default();
+  const hpp = (await import('hpp')).default;
+  const xss = (await import('xss-clean')).default;
+  const mongoSanitize = (await import('express-mongo-sanitize')).default;
 
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  app.use(hpp); // Prevent HTTP Parameter Pollution
+  app.use(hpp()); // Prevent HTTP Parameter Pollution
   app.use(xss()); // Sanitize user input from POST body, GET queries, and params
   app.use(mongoSanitize()); // Prevent NoSQL injection (even if using SQL, good for JSON)
 

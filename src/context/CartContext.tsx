@@ -20,7 +20,10 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 function loadInitial(): CartItem[] {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : [];
+    }
     // migrate from old key
     const legacy = localStorage.getItem(LEGACY_KEY);
     if (legacy) {

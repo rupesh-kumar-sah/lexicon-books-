@@ -38,7 +38,9 @@ export default function BookDetail() {
 
   const loadReviews = () => {
     if (!id) return;
-    bookApi.reviews(id).then(({ reviews }) => setReviews(reviews)).catch(() => {});
+    bookApi.reviews(id).then((res) => {
+      if (res && Array.isArray(res.reviews)) setReviews(res.reviews);
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -47,7 +49,9 @@ export default function BookDetail() {
     addRecent(id);
     bookApi
       .get(id)
-      .then(({ book }) => setBook(book))
+      .then((res) => {
+        if (res && res.book) setBook(res.book);
+      })
       .catch((e) => console.error(e))
       .finally(() => setLoading(false));
     loadReviews();

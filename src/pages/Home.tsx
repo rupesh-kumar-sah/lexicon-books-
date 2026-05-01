@@ -49,10 +49,10 @@ export default function Home() {
       bookApi.genres(),
     ])
       .then(([featured, popular, all, g]) => {
-        setFeaturedBooks(featured.books);
-        setPopularBooks(popular.books);
-        setAllBooks(all.books);
-        setGenres(g.genres);
+        if (featured && featured.books) setFeaturedBooks(featured.books);
+        if (popular && popular.books) setPopularBooks(popular.books);
+        if (all && all.books) setAllBooks(all.books);
+        if (g && g.genres) setGenres(g.genres);
       })
       .catch((e) => console.error('home load failed', e))
       .finally(() => setLoading(false));
@@ -101,7 +101,7 @@ export default function Home() {
                   onClick={openAuthModal}
                   className="px-8 py-4 border border-slate-200 bg-white text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition-all"
                 >
-                  Join {settings.siteName.split(' ')[0]}
+                  Join {(settings?.siteName || 'BookSellNP').split(' ')[0]}
                 </button>
               )}
             </div>

@@ -15,7 +15,11 @@ export function RecentlyViewedProvider({ children }: { children: ReactNode }) {
   const [recentIds, setRecentIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Array.isArray(parsed) ? parsed : [];
+      }
+      return [];
     } catch {
       return [];
     }

@@ -24,8 +24,10 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     wishlistApi
       .ids()
-      .then(({ bookIds }) => {
-        if (!cancelled) setWishlist(bookIds);
+      .then((res) => {
+        if (!cancelled && res && Array.isArray(res.bookIds)) {
+          setWishlist(res.bookIds);
+        }
       })
       .catch((e) => console.error('wishlist load failed', e));
     return () => {
