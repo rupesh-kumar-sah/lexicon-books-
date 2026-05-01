@@ -43,20 +43,21 @@ export default function Home() {
 
   useEffect(() => {
     Promise.all([
-      bookApi.list({ featured: true, limit: 8 }),
+      bookApi.list({ featured: true, limit: 12 }),
       bookApi.list({ sort: 'popular', limit: 8 }),
       bookApi.list({ limit: 200 }),
       bookApi.genres(),
     ])
       .then(([featured, popular, all, g]) => {
-        setFeaturedBooks(featured.books);
-        setPopularBooks(popular.books);
-        setAllBooks(all.books);
-        setGenres(g.genres);
+        if (featured?.books) setFeaturedBooks(featured.books);
+        if (popular?.books) setPopularBooks(popular.books);
+        if (all?.books) setAllBooks(all.books);
+        if (g?.genres) setGenres(g.genres);
       })
       .catch((e) => console.error('home load failed', e))
       .finally(() => setLoading(false));
   }, []);
+
 
   const recentBooks = useMemo(() => {
     if (recentIds.length === 0) return [];

@@ -73,7 +73,7 @@ export default function Catalog() {
   }, [searchTerm, sortBy, selectedGenres]);
 
   useEffect(() => {
-    bookApi.genres().then(({ genres }) => setAllGenres(genres)).catch(() => {});
+    bookApi.genres().then((res) => setAllGenres(res?.genres || [])).catch(() => {});
   }, []);
 
   // Client-side filtering for additional facets (price, multi-genre)

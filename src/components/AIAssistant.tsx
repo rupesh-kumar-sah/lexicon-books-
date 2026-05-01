@@ -22,7 +22,8 @@ export default function AIAssistant() {
   useEffect(() => {
     bookApi.list({ limit: 100 })
       .then(res => {
-        const booksStr = res.books.map(b => `"${b.title}" by ${b.author} (Rs.${b.price})`).join(', ');
+        const books = res?.books || [];
+        const booksStr = books.map(b => `"${b.title}" by ${b.author} (Rs.${b.price})`).join(', ');
         setCatalogContext(`\n\nCurrently available books in our catalog: ${booksStr}`);
       })
       .catch(console.error);
