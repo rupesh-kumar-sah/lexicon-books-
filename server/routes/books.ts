@@ -5,10 +5,16 @@ import { newId, requireAdmin, requireAuth } from '../auth';
 const router = Router();
 
 const BOOK_BASE_SELECT = `
+  WITH book_stats AS (
+    SELECT book_id, COUNT(id)::int AS review_count, COALESCE(AVG(rating), 0) AS avg_rating
+    FROM reviews
+    GROUP BY book_id
+  )
   SELECT b.*,
-         (SELECT COUNT(*)::int FROM reviews r WHERE r.book_id = b.id) AS review_count,
-         (SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.book_id = b.id) AS avg_rating
+         COALESCE(s.review_count, 0) AS review_count,
+         COALESCE(s.avg_rating, 0) AS avg_rating
   FROM books b
+  LEFT JOIN book_stats s ON s.book_id = b.id
 `;
 
 function rowToBook(r: any) {
