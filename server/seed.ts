@@ -161,15 +161,6 @@ const INITIAL_BOOKS = [
 ];
 
 export async function seedIfEmpty() {
-  const result = await query<{ count: string }>('SELECT COUNT(*)::text AS count FROM books');
-  if (result.rows[0].count !== '0') return;
-  console.log('[seed] books table empty — seeding initial catalog');
-  for (const b of INITIAL_BOOKS) {
-    await query(
-      `INSERT INTO books (id, title, author, description, price, cover_image, isbn, genre, stock, rating, year, featured)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      [newId(), b.title, b.author, b.description, b.price, b.coverImage, b.isbn, b.genre, b.stock, b.rating, b.year, b.featured]
-    );
-  }
-  console.log(`[seed] inserted ${INITIAL_BOOKS.length} books`);
+  // Seeding disabled to avoid creating demo products
+  console.log('[seed] Seeding is disabled.');
 }
