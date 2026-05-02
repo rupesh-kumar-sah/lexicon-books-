@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db';
 import { requireAdmin } from '../auth';
+import { getCache, setCache } from '../cache';
 
 const router = Router();
 
