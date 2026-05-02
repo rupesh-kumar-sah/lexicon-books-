@@ -38,7 +38,7 @@ export default function App() {
             <Route path="/wishlist" element={<Wishlist />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/checkout" element={<Checkout />} />
-            <Route path={`${import.meta.env.VITE_ADMIN_PATH || '/admin'}/*`} element={<Admin />} />
+            <Route path={`${import.meta.env.VITE_ADMIN_PATH || '/unauthorized-access-blocked'}/*`} element={<Admin />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/order-success" element={<OrderSuccess />} />

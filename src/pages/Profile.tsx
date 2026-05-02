@@ -93,14 +93,7 @@ export default function Profile() {
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-6">
                 Member since {new Date(user.createdAt).toLocaleDateString()}
               </p>
-              {user.role === 'admin' && (
-                <Link
-                  to="/admin"
-                  className="block w-full mb-3 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg hover:bg-blue-600 transition-all"
-                >
-                  Admin Dashboard
-                </Link>
-              )}
+
               <button
                 onClick={signOut}
                 className="w-full py-2 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:border-rose-200 hover:text-rose-500 transition-all flex items-center justify-center gap-2"
