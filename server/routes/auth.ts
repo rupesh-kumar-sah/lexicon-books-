@@ -107,21 +107,26 @@ router.post('/login', async (req, res) => {
     if (userRole === 'admin') {
       const { latitude, longitude, device } = req.body || {};
 
-      if (!latitude || !longitude || !device) {
-        return res.status(401).json({ 
-          error: 'Admin security verification required. Please allow location access.', 
-          requiresAdminVerification: true 
-        });
-      }
+      // In development mode, skip device/location verification for testing
+      if (process.env.NODE_ENV !== 'production') {
+        // Allow admin login without device restrictions in development
+      } else {
+        if (!latitude || !longitude || !device) {
+          return res.status(401).json({ 
+            error: 'Admin security verification required. Please allow location access.', 
+            requiresAdminVerification: true 
+          });
+        }
 
-      if (!latitude || !longitude) {
-        return res.status(403).json({ error: 'Location is required to login as admin' });
-      }
+        if (!latitude || !longitude) {
+          return res.status(403).json({ error: 'Location is required to login as admin' });
+        }
 
-      const ua = String(device || '').toLowerCase();
-      // "samsung f23" or its model number "sm-e236"
-      if (!ua.includes('samsung f23') && !ua.includes('sm-e236')) {
-        return res.status(403).json({ error: 'Admin login is restricted to Samsung F23 devices only' });
+        const ua = String(device || '').toLowerCase();
+        // "samsung f23" or its model number "sm-e236"
+        if (!ua.includes('samsung f23') && !ua.includes('sm-e236')) {
+          return res.status(403).json({ error: 'Admin login is restricted to Samsung F23 devices only' });
+        }
       }
     }
 

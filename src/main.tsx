@@ -14,18 +14,18 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <ToastProvider>
-      <SiteSettingsProvider>
-        <AuthProvider>
-          <WishlistProvider>
-            <CartProvider>
-              <RecentlyViewedProvider>
-                <App />
-              </RecentlyViewedProvider>
-            </CartProvider>
-          </WishlistProvider>
-        </AuthProvider>
-      </SiteSettingsProvider>
-    </ToastProvider>
+        <SiteSettingsProvider>
+          <AuthProvider>
+            <WishlistProvider>
+              <CartProvider>
+                <RecentlyViewedProvider>
+                  <App />
+                </RecentlyViewedProvider>
+              </CartProvider>
+            </WishlistProvider>
+          </AuthProvider>
+        </SiteSettingsProvider>
+      </ToastProvider>
     </ErrorBoundary>
   </StrictMode>
 );

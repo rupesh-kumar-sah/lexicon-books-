@@ -1527,21 +1527,26 @@ function AdminLoginForm() {
     setError(null);
     setLoading(true);
     try {
-      if (!navigator.geolocation) {
-        throw new Error('Geolocation is not supported by this browser. (Are you using HTTP instead of HTTPS?)');
-      }
-      const device = navigator.userAgent;
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, { 
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
+      // In development mode, skip geolocation requirement
+      if (import.meta.env.DEV) {
+        await signIn(email.trim(), password, { latitude: 0, longitude: 0, device: 'development' });
+      } else {
+        if (!navigator.geolocation) {
+          throw new Error('Geolocation is not supported by this browser. (Are you using HTTP instead of HTTPS?)');
+        }
+        const device = navigator.userAgent;
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { 
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          });
         });
-      });
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
 
-      await signIn(email.trim(), password, { latitude: lat, longitude: lng, device });
+        await signIn(email.trim(), password, { latitude: lat, longitude: lng, device });
+      }
     } catch (err: any) {
       if (err.code === 1) setError('Location permission denied. Please enable it in your browser settings.');
       else if (err.code === 2) setError('Location unavailable. Make sure your device GPS is turned on.');
