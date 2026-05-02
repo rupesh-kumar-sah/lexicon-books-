@@ -5,7 +5,7 @@ import { AuthUser } from '../types';
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string, adminPin?: string) => Promise<void>;
+  signIn: (email: string, password: string, verifyAdmin?: boolean) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
@@ -44,12 +44,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string, adminPin?: string) => {
+  const signIn = useCallback(async (email: string, password: string, verifyAdmin?: boolean) => {
     let lat: number | undefined;
     let lng: number | undefined;
     let device: string | undefined;
 
-    if (adminPin) {
+    if (verifyAdmin) {
       device = navigator.userAgent;
       try {
         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -65,7 +65,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { token, user } = await authApi.login({ 
       email, 
       password, 
-      admin_pin: adminPin,
       latitude: lat,
       longitude: lng,
       device

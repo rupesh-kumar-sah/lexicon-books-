@@ -1388,20 +1388,6 @@ function ThemesView() {
           </div>
 
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Admin Security</p>
-            <div className="grid md:grid-cols-2 gap-4">
-              <Field 
-                label="Admin Login PIN" 
-                type="text" 
-                value={form.adminPin} 
-                onChange={(v) => update('adminPin', v.replace(/\D/g, '').slice(0, 4))} 
-                placeholder="4-digit PIN"
-              />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-2 italic">This PIN is required for all administrator logins.</p>
-          </div>
-
-          <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Legal Pages (Markdown supported)</p>
             <div className="space-y-4">
               <div className="space-y-1.5">

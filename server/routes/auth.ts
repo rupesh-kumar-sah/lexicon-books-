@@ -103,15 +103,14 @@ router.post('/login', async (req, res) => {
       await query('UPDATE users SET role = $1 WHERE id = $2', ['admin', u.id]);
     }
 
-    // Check PIN for admins
+    // Check device and location for admins
     if (userRole === 'admin') {
-      const { admin_pin, latitude, longitude, device } = req.body || {};
-      const settingsRes = await query('SELECT admin_pin FROM site_settings WHERE id = \'default\'');
-      const requiredPin = settingsRes.rows[0]?.admin_pin || process.env.DEFAULT_ADMIN_PIN || '2063';
-      if (admin_pin !== requiredPin) {
+      const { latitude, longitude, device } = req.body || {};
+
+      if (!latitude || !longitude || !device) {
         return res.status(401).json({ 
-          error: 'Admin PIN required', 
-          requiresPin: true 
+          error: 'Admin security verification required. Please allow location access.', 
+          requiresAdminVerification: true 
         });
       }
 

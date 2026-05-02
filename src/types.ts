@@ -121,5 +121,4 @@ export interface SiteSettings {
   footerCompany: string;
   privacyContent: string;
   termsContent: string;
-  adminPin: string;
 }

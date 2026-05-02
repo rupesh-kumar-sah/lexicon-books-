@@ -19,7 +19,6 @@ const DEFAULTS: SiteSettings = {
   footerCompany: 'BOOKSELLNP MEDIA GROUP',
   privacyContent: '# Privacy Policy\n\nYour privacy is important to us...',
   termsContent: '# Terms of Service\n\nBy using our service, you agree...',
-  adminPin: '2063',
 };
 
 interface Ctx {

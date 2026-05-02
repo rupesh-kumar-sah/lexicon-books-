@@ -10,8 +10,7 @@ export default function AuthModal() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [adminPin, setAdminPin] = useState('');
-  const [showPin, setShowPin] = useState(false);
+  const [verifyAdmin, setVerifyAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -19,8 +18,7 @@ export default function AuthModal() {
     setEmail('');
     setPassword('');
     setDisplayName('');
-    setAdminPin('');
-    setShowPin(false);
+    setVerifyAdmin(false);
     setError(null);
     setSubmitting(false);
   };
@@ -36,16 +34,16 @@ export default function AuthModal() {
     setSubmitting(true);
     try {
       if (mode === 'signin') {
-        await signIn(email.trim(), password, adminPin || undefined);
+        await signIn(email.trim(), password, verifyAdmin);
       } else {
         if (!displayName.trim()) throw new Error('Please enter your name');
         await signUp(email.trim(), password, displayName.trim());
       }
       close();
     } catch (err: any) {
-      if (err.message?.includes('Admin PIN required')) {
-        setShowPin(true);
-        setError('Please enter your Admin PIN to continue');
+      if (err.message?.includes('Admin security verification required')) {
+        setVerifyAdmin(true);
+        setError('Please allow location access to verify admin identity.');
       } else {
         setError(err.message || 'Authentication failed');
       }
@@ -93,7 +91,7 @@ export default function AuthModal() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-8 space-y-5">
-              {!showPin && (
+              {!verifyAdmin && (
                 <>
                   {mode === 'signup' && (
                     <div>
@@ -142,26 +140,17 @@ export default function AuthModal() {
                 </>
               )}
 
-              {showPin && (
+              {verifyAdmin && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="overflow-hidden"
+                  className="overflow-hidden bg-blue-50 border border-blue-100 rounded-xl p-4 text-center"
                 >
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Admin Security PIN</label>
-                  <div className="relative mt-1.5">
-                    <ShieldCheck className="w-4 h-4 absolute left-3.5 top-3.5 text-blue-600" />
-                    <input
-                      required
-                      type="text"
-                      inputMode="numeric"
-                      value={adminPin}
-                      onChange={(e) => setAdminPin(e.target.value)}
-                      placeholder="Enter 4-digit PIN"
-                      maxLength={4}
-                      className="w-full pl-10 pr-4 py-3 bg-blue-50 border border-blue-100 rounded-xl text-sm font-bold tracking-[0.5em] focus:ring-2 focus:ring-blue-500 outline-none transition"
-                    />
-                  </div>
+                  <ShieldCheck className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                  <h3 className="font-bold text-slate-900 text-sm mb-1">Admin Verification Required</h3>
+                  <p className="text-xs text-slate-600">
+                    To access the admin dashboard, we need to verify your location and device. Please click the button below and allow location access when prompted.
+                  </p>
                 </motion.div>
               )}
 
@@ -177,10 +166,10 @@ export default function AuthModal() {
                 className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/20 active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                {showPin ? 'Verify & Sign In' : mode === 'signin' ? 'Sign In' : 'Create Account'}
+                {verifyAdmin ? 'Verify Device & Location' : mode === 'signin' ? 'Sign In' : 'Create Account'}
               </button>
 
-              {!showPin && (
+              {!verifyAdmin && (
                 <div className="text-center text-sm text-slate-500">
                   {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
                   <button
