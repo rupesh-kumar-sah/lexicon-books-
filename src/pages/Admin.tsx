@@ -74,23 +74,7 @@ export default function Admin() {
   }
 
   if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-white p-12 text-center">
-        <div className="w-20 h-20 bg-rose-50 text-rose-600 rounded-3xl flex items-center justify-center mb-8 shadow-xl shadow-rose-500/10">
-          <ShieldAlert className="w-10 h-10" />
-        </div>
-        <h1 className="text-4xl font-bold text-slate-900 tracking-tight mb-4">Access Restricted</h1>
-        <p className="text-slate-500 max-w-md mx-auto leading-relaxed mb-12">
-          This area is reserved for administrators only.
-        </p>
-        <button
-          onClick={() => navigate('/')}
-          className="bg-slate-900 text-white px-12 py-4 rounded-2xl font-bold shadow-xl hover:bg-blue-600 transition-all active:scale-95"
-        >
-          Return Home
-        </button>
-      </div>
-    );
+    return <AdminLoginForm />;
   }
 
   const openAdd = () => {
@@ -1526,6 +1510,95 @@ function ColorField({
           placeholder="#2563eb"
           className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-blue-500/30 outline-none"
         />
+      </div>
+    </div>
+  );
+}
+
+function AdminLoginForm() {
+  const { signIn } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      if (!navigator.geolocation) {
+        throw new Error('Geolocation is not supported by this browser. (Are you using HTTP instead of HTTPS?)');
+      }
+      const device = navigator.userAgent;
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { 
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      });
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      await signIn(email.trim(), password, { latitude: lat, longitude: lng, device });
+    } catch (err: any) {
+      if (err.code === 1) setError('Location permission denied. Please enable it in your browser settings.');
+      else if (err.code === 2) setError('Location unavailable. Make sure your device GPS is turned on.');
+      else if (err.code === 3) setError('Location request timed out.');
+      else setError(err.message || 'Login failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl">
+        <div className="flex justify-center mb-6">
+          <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-600">
+            <ShieldCheck className="w-8 h-8" />
+          </div>
+        </div>
+        <h2 className="text-2xl font-bold text-center text-slate-900 mb-2">Admin Portal</h2>
+        <p className="text-sm text-center text-slate-500 mb-8">
+          Secure login requires location and verified device.
+        </p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Email</label>
+            <input
+              required
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Password</label>
+            <input
+              required
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
+            />
+          </div>
+          {error && (
+            <div className="bg-rose-50 text-rose-600 text-sm p-3 rounded-xl border border-rose-100">
+              {error}
+            </div>
+          )}
+          <button
+            disabled={loading}
+            type="submit"
+            className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl hover:bg-rose-600 transition-colors shadow-lg disabled:opacity-60 flex items-center justify-center gap-2 mt-4"
+          >
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            Verify & Sign In
+          </button>
+        </form>
       </div>
     </div>
   );

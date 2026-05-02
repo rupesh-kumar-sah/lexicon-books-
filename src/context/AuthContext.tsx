@@ -5,7 +5,7 @@ import { AuthUser } from '../types';
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  signIn: (email: string, password: string, verifyAdmin?: boolean) => Promise<void>;
+  signIn: (email: string, password: string, adminData?: { latitude: number; longitude: number; device: string }) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   isAdmin: boolean;
@@ -44,42 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string, verifyAdmin?: boolean) => {
-    let lat: number | undefined;
-    let lng: number | undefined;
-    let device: string | undefined;
-
-    if (verifyAdmin) {
-      device = navigator.userAgent;
-      if (!navigator.geolocation) {
-        throw new Error('Geolocation is not supported by this browser. (Are you using HTTP instead of HTTPS?)');
-      }
-      try {
-        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { 
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-          });
-        });
-        lat = pos.coords.latitude;
-        lng = pos.coords.longitude;
-      } catch (e: any) {
-        let msg = 'Failed to get location.';
-        if (e.code === 1) msg = 'Location permission denied. Please enable it in your browser settings (Site Settings -> Location).';
-        else if (e.code === 2) msg = 'Location unavailable. Make sure your device GPS is turned on.';
-        else if (e.code === 3) msg = 'Location request timed out.';
-        else if (e.message) msg = e.message;
-        throw new Error(msg);
-      }
-    }
-
+  const signIn = useCallback(async (email: string, password: string, adminData?: { latitude: number; longitude: number; device: string }) => {
     const { token, user } = await authApi.login({ 
       email, 
       password, 
-      latitude: lat,
-      longitude: lng,
-      device
+      latitude: adminData?.latitude,
+      longitude: adminData?.longitude,
+      device: adminData?.device
     });
     setToken(token);
     setUser(user);

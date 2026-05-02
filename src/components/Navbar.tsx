@@ -84,14 +84,6 @@ export default function Navbar() {
                   {user.displayName.split(' ')[0]}
                 </span>
               </Link>
-              {isAdmin && (
-                <Link
-                  to="/admin"
-                  className="px-3 py-1 bg-slate-900 text-white text-[10px] font-bold uppercase tracking-widest rounded-md hover:bg-blue-600 transition-colors ml-2"
-                >
-                  Admin
-                </Link>
-              )}
               <button
                 onClick={signOut}
                 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-blue-700 transition-colors ml-2"
@@ -128,9 +120,6 @@ export default function Navbar() {
               <Link onClick={() => setIsMenuOpen(false)} to="/catalog" className="block px-3 py-3 text-sm font-medium text-slate-900 rounded-lg hover:bg-slate-50">Catalog</Link>
               <Link onClick={() => setIsMenuOpen(false)} to="/wishlist" className="block px-3 py-3 text-sm font-medium text-slate-900 rounded-lg hover:bg-slate-50">Wishlist</Link>
               <Link onClick={() => setIsMenuOpen(false)} to="/cart" className="block px-3 py-3 text-sm font-medium text-slate-900 rounded-lg hover:bg-slate-50">Cart</Link>
-              {isAdmin && (
-                <Link onClick={() => setIsMenuOpen(false)} to="/admin" className="block px-3 py-3 text-sm font-bold text-blue-700 rounded-lg hover:bg-slate-50">Admin Dashboard</Link>
-              )}
               {user ? (
                 <button
                   onClick={() => { setIsMenuOpen(false); signOut(); }}
