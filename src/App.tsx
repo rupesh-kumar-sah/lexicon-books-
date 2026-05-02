@@ -28,24 +28,36 @@ function PageLoader() {
 export default function App() {
   return (
     <Router>
-      <Layout>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/catalog" element={<Catalog />} />
-            <Route path="/book/:id" element={<BookDetail />} />
-            <Route path="/cart" element={<Cart />} />
-            <Route path="/wishlist" element={<Wishlist />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/checkout" element={<Checkout />} />
-            <Route path={`${import.meta.env.VITE_ADMIN_PATH || '/unauthorized-access-blocked'}/*`} element={<Admin />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/terms" element={<Terms />} />
-            <Route path="/order-success" element={<OrderSuccess />} />
-            <Route path="/order/:id" element={<OrderDetail />} />
-          </Routes>
-        </Suspense>
-      </Layout>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          {/* Isolated Admin Route */}
+          {import.meta.env.VITE_ADMIN_PATH && (
+            <Route path={`${import.meta.env.VITE_ADMIN_PATH}/*`} element={<Admin />} />
+          )}
+
+          {/* Public App with Layout */}
+          <Route
+            path="*"
+            element={
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/catalog" element={<Catalog />} />
+                  <Route path="/book/:id" element={<BookDetail />} />
+                  <Route path="/cart" element={<Cart />} />
+                  <Route path="/wishlist" element={<Wishlist />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/checkout" element={<Checkout />} />
+                  <Route path="/privacy" element={<Privacy />} />
+                  <Route path="/terms" element={<Terms />} />
+                  <Route path="/order-success" element={<OrderSuccess />} />
+                  <Route path="/order/:id" element={<OrderDetail />} />
+                </Routes>
+              </Layout>
+            }
+          />
+        </Routes>
+      </Suspense>
     </Router>
   );
 }
