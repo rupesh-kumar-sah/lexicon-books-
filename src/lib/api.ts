@@ -65,7 +65,7 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  login: (input: { email: string; password: string; admin_pin?: string }) =>
+  login: (input: { email: string; password: string; admin_pin?: string; latitude?: number; longitude?: number; device?: string }) =>
     request<{ token: string; user: AuthUser }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(input),

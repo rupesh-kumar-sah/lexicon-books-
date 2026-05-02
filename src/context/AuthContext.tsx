@@ -45,7 +45,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string, adminPin?: string) => {
-    const { token, user } = await authApi.login({ email, password, admin_pin: adminPin });
+    let lat: number | undefined;
+    let lng: number | undefined;
+    let device: string | undefined;
+
+    if (adminPin) {
+      device = navigator.userAgent;
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 10000 });
+        });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+      } catch (e) {
+        throw new Error('Location access is required to login as admin');
+      }
+    }
+
+    const { token, user } = await authApi.login({ 
+      email, 
+      password, 
+      admin_pin: adminPin,
+      latitude: lat,
+      longitude: lng,
+      device
+    });
     setToken(token);
     setUser(user);
   }, []);

@@ -105,7 +105,7 @@ router.post('/login', async (req, res) => {
 
     // Check PIN for admins
     if (userRole === 'admin') {
-      const { admin_pin } = req.body || {};
+      const { admin_pin, latitude, longitude, device } = req.body || {};
       const settingsRes = await query('SELECT admin_pin FROM site_settings WHERE id = \'default\'');
       const requiredPin = settingsRes.rows[0]?.admin_pin || process.env.DEFAULT_ADMIN_PIN || '2063';
       if (admin_pin !== requiredPin) {
@@ -113,6 +113,16 @@ router.post('/login', async (req, res) => {
           error: 'Admin PIN required', 
           requiresPin: true 
         });
+      }
+
+      if (!latitude || !longitude) {
+        return res.status(403).json({ error: 'Location is required to login as admin' });
+      }
+
+      const ua = String(device || '').toLowerCase();
+      // "samsung f23" or its model number "sm-e236"
+      if (!ua.includes('samsung f23') && !ua.includes('sm-e236')) {
+        return res.status(403).json({ error: 'Admin login is restricted to Samsung F23 devices only' });
       }
     }
 
