@@ -71,7 +71,7 @@ router.get('/stats', requireAdmin, async (_req, res) => {
       CROSS JOIN top_genres tg
       CROSS JOIN recent_orders ro
       CROSS JOIN daily_orders do
-    \`;
+    `;
 
     const result = await query<any>(sql);
     const r = result.rows[0];
