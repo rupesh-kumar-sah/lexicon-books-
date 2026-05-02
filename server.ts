@@ -92,8 +92,6 @@ async function startServer() {
       /onerror=/i,
       /UNION SELECT/i,
       /OR 1=1/i,
-      /--/i,
-      /;/i,
     ];
     const checkValue = (val: any): boolean => {
       if (typeof val === 'string') {
