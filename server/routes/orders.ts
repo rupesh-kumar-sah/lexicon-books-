@@ -4,9 +4,6 @@ import { newId, requireAuth } from '../auth';
 
 const router = Router();
 
-const SHIPPING_FEE = 4.99;
-const FREE_SHIPPING_THRESHOLD = 50;
-
 router.post('/', async (req, res) => {
   const { items, customer } = req.body || {};
   if (!Array.isArray(items) || items.length === 0) {
@@ -19,6 +16,14 @@ router.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // Fetch site settings for shipping calculation
+    const settingsResult = await client.query('SELECT * FROM site_settings WHERE id = \'default\'');
+    const settings = settingsResult.rows[0];
+    
+    const shippingKtm = Number(settings?.shipping_ktm || 100);
+    const shippingOutside = Number(settings?.shipping_outside || 150);
+    const freeShippingThreshold = Number(settings?.free_shipping_threshold || 5000);
 
     // Lock and check stock for each book
     for (const i of items) {
@@ -49,7 +54,16 @@ router.post('/', async (req, res) => {
       (sum: number, i: any) => sum + Number(i.price) * Number(i.quantity),
       0
     );
-    const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
+    
+    // Determine shipping fee based on location and threshold
+    const isOutside = customer.city?.toLowerCase().includes('kathmandu') === false && 
+                      customer.address?.toLowerCase().includes('kathmandu') === false;
+    
+    let shipping = 0;
+    if (subtotal < freeShippingThreshold) {
+      shipping = isOutside ? shippingOutside : shippingKtm;
+    }
+    
     const total = subtotal + shipping;
 
     const id = newId();

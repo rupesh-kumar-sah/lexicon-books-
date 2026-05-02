@@ -161,7 +161,30 @@ const INITIAL_BOOKS = [
 ];
 
 export async function seedIfEmpty() {
-  // Seeding disabled to avoid creating demo products
-  console.log('[seed] Seeding is disabled.');
+  const { rows } = await query('SELECT COUNT(*) FROM books');
+  if (parseInt(rows[0].count) === 0) {
+    console.log('[seed] Seeding database with initial books...');
+    for (const book of INITIAL_BOOKS) {
+      await query(
+        'INSERT INTO books (id, title, author, description, price, cover_image, isbn, genre, stock, rating, year, featured) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)',
+        [
+          newId(),
+          book.title,
+          book.author,
+          book.description,
+          book.price,
+          book.coverImage,
+          book.isbn,
+          book.genre,
+          book.stock,
+          book.rating,
+          book.year,
+          book.featured,
+        ]
+      );
+    }
+    console.log('[seed] Seeding complete.');
+  } else {
+    console.log('[seed] Database already contains data, skipping seed.');
+  }
 }
-
