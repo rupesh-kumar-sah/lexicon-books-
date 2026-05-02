@@ -33,6 +33,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  // Security Firewall: Add secret token for admin requests
+  if (path.startsWith('/api/admin')) {
+    headers['x-admin-security-token'] = import.meta.env.VITE_ADMIN_PATH || 'default-secret-2063';
+  }
+
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
   const text = await res.text();
   let data: any = null;

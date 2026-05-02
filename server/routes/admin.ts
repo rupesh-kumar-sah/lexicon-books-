@@ -5,6 +5,18 @@ import { getCache, setCache } from '../cache';
 
 const router = Router();
 
+// Extra Security Firewall: Validate a secret security token for all admin requests
+router.use((req, res, next) => {
+  const secretToken = req.headers['x-admin-security-token'];
+  const expectedToken = process.env.VITE_ADMIN_PATH || 'default-secret-2063';
+  
+  if (secretToken !== expectedToken) {
+    console.warn(`Blocked unauthorized admin API attempt from ${req.ip}`);
+    return res.status(403).json({ error: 'Security Firewall: Access Denied' });
+  }
+  next();
+});
+
 const ALLOWED_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
 type OrderStatus = (typeof ALLOWED_STATUSES)[number];
 
