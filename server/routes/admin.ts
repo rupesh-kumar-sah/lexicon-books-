@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query } from '../db';
+import { adminQuery } from '../db';
 import { requireAdmin } from '../auth';
 import { getCache, setCache } from '../cache';
 
@@ -85,7 +85,7 @@ router.get('/stats', requireAdmin, async (_req, res) => {
       CROSS JOIN daily_orders do
     `;
 
-    const result = await query<any>(sql);
+    const result = await adminQuery<any>(sql);
     const r = result.rows[0];
 
     const data = {
@@ -151,7 +151,7 @@ router.get('/orders', requireAdmin, async (req, res) => {
     const lim = Math.min(500, Math.max(1, Number(limit) || 100));
     sql += ` LIMIT ${lim}`;
 
-    const result = await query<any>(sql, params);
+    const result = await adminQuery<any>(sql, params);
     res.json({
       orders: result.rows.map((r) => ({
         id: r.id,
@@ -181,7 +181,7 @@ router.patch('/orders/:id/status', requireAdmin, async (req, res) => {
     if (!ALLOWED_STATUSES.includes(status)) {
       return res.status(400).json({ error: 'Invalid status' });
     }
-    const result = await query(
+    const result = await adminQuery(
       'UPDATE orders SET status = $1 WHERE id = $2 RETURNING id, status',
       [status, req.params.id]
     );
@@ -195,7 +195,7 @@ router.patch('/orders/:id/status', requireAdmin, async (req, res) => {
 
 router.delete('/orders/:id', requireAdmin, async (req, res) => {
   try {
-    const result = await query('DELETE FROM orders WHERE id = $1 RETURNING id', [req.params.id]);
+    const result = await adminQuery('DELETE FROM orders WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
     res.json({ ok: true });
   } catch (e: any) {
@@ -229,7 +229,7 @@ router.get('/users', requireAdmin, async (req, res) => {
       ORDER BY u.created_at DESC
       LIMIT 500
     `;
-    const result = await query<any>(sql, params);
+    const result = await adminQuery<any>(sql, params);
     res.json({
       users: result.rows.map((r) => ({
         id: r.id,
@@ -256,7 +256,7 @@ router.patch('/users/:id', requireAdmin, async (req: any, res) => {
     if (req.params.id === req.user?.id && role !== 'admin') {
       return res.status(400).json({ error: 'You cannot demote yourself' });
     }
-    const result = await query(
+    const result = await adminQuery(
       'UPDATE users SET role = $1 WHERE id = $2 RETURNING id, role',
       [role, req.params.id]
     );
@@ -273,7 +273,7 @@ router.delete('/users/:id', requireAdmin, async (req: any, res) => {
     if (req.params.id === req.user?.id) {
       return res.status(400).json({ error: 'You cannot delete your own account' });
     }
-    const result = await query('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
+    const result = await adminQuery('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     res.json({ ok: true });
   } catch (e: any) {
@@ -286,7 +286,7 @@ router.delete('/users/:id', requireAdmin, async (req: any, res) => {
 // GET is intentionally public so the storefront can read brand/theme.
 router.get('/settings', async (_req, res) => {
   try {
-    const result = await query<any>(`SELECT * FROM site_settings WHERE id = 'default'`);
+    const result = await adminQuery<any>(`SELECT * FROM site_settings WHERE id = 'default'`);
     const r = result.rows[0];
     if (!r) return res.json({ settings: null });
     res.json({
@@ -325,7 +325,7 @@ router.put('/settings', requireAdmin, async (req, res) => {
     if (!isHex(primaryColor) || !isHex(accentColor)) {
       return res.status(400).json({ error: 'Colors must be hex like #2563eb' });
     }
-    await query(
+    await adminQuery(
       `UPDATE site_settings
        SET site_name = $1, tagline = $2, primary_color = $3, accent_color = $4,
            hero_image = $5, shipping_ktm = $6, shipping_outside = $7, free_shipping_threshold = $8, footer_text_1 = $9, footer_text_2 = $10, footer_text_3 = $11, footer_link_1 = $12, footer_link_2 = $13, footer_company = $14, privacy_content = $15, terms_content = $16, admin_pin = $17, updated_at = NOW()
