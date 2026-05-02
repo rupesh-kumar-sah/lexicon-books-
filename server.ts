@@ -121,13 +121,16 @@ async function startServer() {
       process.env.FRONTEND_URL || '',
     ].filter(Boolean);
 
-    // In production, only allow specifically defined origins
+    // In production, only allow specifically defined origins or same-origin requests
     if (process.env.NODE_ENV === 'production') {
-      if (allowed.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
+      const host = req.headers.host || '';
+      const isSameOrigin = !origin || origin.replace(/^https?:\/\//, '') === host;
+
+      if (isSameOrigin || allowed.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin || '*');
       } else {
         // Log unauthorized CORS attempt
-        if (origin) console.warn(`[CORS Blocked] Unauthorized origin: ${origin}`);
+        if (origin) console.warn(`[CORS Blocked] Unauthorized origin: ${origin} (Host: ${host})`);
         return res.status(403).json({ error: 'CORS policy violation' });
       }
     } else {
