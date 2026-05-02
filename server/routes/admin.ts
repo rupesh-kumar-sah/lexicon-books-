@@ -45,20 +45,33 @@ router.get('/stats', requireAdmin, async (_req, res) => {
       ),
       recent_orders AS (
         SELECT json_agg(o) FROM (
-          SELECT id, customer_name, customer_email, total, status, created_at
+          SELECT id, customer_name, customer_email, total, status, created_at, items_json
           FROM orders ORDER BY created_at DESC LIMIT 5
         ) o
+      ),
+      daily_orders AS (
+        SELECT json_agg(d) FROM (
+          SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') AS day,
+                 COUNT(*)::int AS count,
+                 COALESCE(SUM(total), 0)::numeric AS revenue
+          FROM orders
+          WHERE created_at >= NOW() - INTERVAL '14 days'
+          GROUP BY day
+          ORDER BY day
+        ) d
       )
       SELECT 
         m.*, b.*, u.*, 
         tg.json_agg as genres, 
-        ro.json_agg as recent 
+        ro.json_agg as recent,
+        do.json_agg as daily
       FROM order_metrics m
       CROSS JOIN book_metrics b
       CROSS JOIN user_metrics u
       CROSS JOIN top_genres tg
       CROSS JOIN recent_orders ro
-    `;
+      CROSS JOIN daily_orders do
+    \`;
 
     const result = await query<any>(sql);
     const r = result.rows[0];
@@ -76,7 +89,13 @@ router.get('/stats', requireAdmin, async (_req, res) => {
         customerEmail: o.customer_email,
         total: Number(o.total),
         status: o.status,
+        itemCount: Array.isArray(o.items_json) ? o.items_json.length : 0,
         createdAt: new Date(o.created_at).getTime(),
+      })),
+      dailyOrders: (r.daily || []).map((d: any) => ({
+        day: d.day,
+        count: Number(d.count),
+        revenue: Number(d.revenue),
       })),
       statusCounts: {
         pending: r.pending_count,
