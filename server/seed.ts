@@ -96,7 +96,7 @@ const INITIAL_BOOKS = [
   {
     title: 'Gone Girl',
     author: 'Gillian Flynn',
-    description: 'On a warm summer morning in North Carthage, Missouri, it is Nick and Amy Dunne\u2019s fifth wedding anniversary. Then his wife disappears.',
+    description: 'On a warm summer morning in North Carthage, Missouri, it is Nick and Amy Dunne’s fifth wedding anniversary. Then his wife disappears.',
     price: 16.99,
     coverImage: 'https://images.unsplash.com/photo-1535905557558-afc4877a26fc?auto=format&fit=crop&q=80&w=800',
     isbn: '9780307588371',
@@ -135,7 +135,7 @@ const INITIAL_BOOKS = [
   {
     title: 'Dune',
     author: 'Frank Herbert',
-    description: 'The epic story of Paul Atreides on the desert planet Arrakis, where the spice melange is the universe\u2019s most precious substance.',
+    description: 'The epic story of Paul Atreides on the desert planet Arrakis, where the spice melange is the universe’s most precious substance.',
     price: 23.99,
     coverImage: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=800',
     isbn: '9780441172719',
@@ -185,6 +185,25 @@ export async function seedIfEmpty() {
     }
     console.log('[seed] Seeding complete.');
   } else {
-    console.log('[seed] Database already contains data, skipping seed.');
+    console.log('[seed] Books already exist, skipping book seed.');
+  }
+
+  // Ensure admin user exists
+  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@lexicon.com').toLowerCase();
+  const adminPass = process.env.ADMIN_PASSWORD || 'adminpassword123';
+  const { rows: adminRows } = await query('SELECT id FROM users WHERE email = $1', [adminEmail]);
+  if (adminRows.length === 0) {
+    console.log('[seed] Creating default admin user...');
+    const { hashPassword } = await import('./auth');
+    const id = newId();
+    const hash = await hashPassword(adminPass);
+    await query(
+      `INSERT INTO users (id, email, password_hash, display_name, photo_url, role)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, adminEmail, hash, 'System Admin', 'https://ui-avatars.com/api/?name=Admin&background=1d4ed8&color=fff', 'admin']
+    );
+    console.log('[seed] Admin user created.');
+  } else {
+    console.log('[seed] Admin user already exists.');
   }
 }

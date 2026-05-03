@@ -76,13 +76,13 @@ router.get('/stats', requireAdmin, async (_req, res) => {
         m.*, b.*, u.*, 
         tg.json_agg as genres, 
         ro.json_agg as recent,
-        do.json_agg as daily
+        dly.json_agg as daily
       FROM order_metrics m
       CROSS JOIN book_metrics b
       CROSS JOIN user_metrics u
       CROSS JOIN top_genres tg
       CROSS JOIN recent_orders ro
-      CROSS JOIN daily_orders do
+      CROSS JOIN daily_orders dly
     `;
 
     const result = await adminQuery<any>(sql);
