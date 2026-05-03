@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: standard
     buildCommand: npm run build
-    startCommand: npm run start
+    startCommand: NODE_ENV=production npm run start
     envVars:
       - key: NODE_ENV
         value: production
@@ -15,7 +15,7 @@ services:
           name: lexicon-books-db
           property: connectionString
     autoDeploy: false
-
+    
   - type: pserv
     name: lexicon-books-db
     ipAllowList: []
