@@ -16,9 +16,9 @@ services:
           property: connectionString
     autoDeploy: false
     
-  - type: pserv
+  - type: postgres
     name: lexicon-books-db
     ipAllowList: []
     plan: standard
-    postgresMajorVersion: '15'
-    initialDatabase: lexicon_books
+    postgresVersion: 15
+    databaseName: lexicon_books

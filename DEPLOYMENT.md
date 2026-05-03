@@ -69,8 +69,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    - Go to https://render.com/dashboard
    - Click "New +" → "Infrastructure"
    - Select your GitHub repository
-   - Render will auto-detect `render.yaml`
-   - Review the configuration and click "Deploy"
+   - Render should auto-detect `render.yaml`
+   - Review the generated service definitions and click "Deploy"
+
+> This is the correct blueprint if you want Render to deploy using the `render.yaml` setup. It lets Render create both the web service and the PostgreSQL database automatically.
 
 4. **Render will automatically:**
    - Create PostgreSQL database
