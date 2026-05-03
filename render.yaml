@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: lexicon-books-app
+    runtime: node
+    plan: standard
+    buildCommand: npm run build
+    startCommand: NODE_ENV=production npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_ENABLED
+        value: 'false'
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lexicon-books-db
+          property: connectionString
+    autoDeploy: false
+    
+  - type: pserv
+    name: lexicon-books-db
+    ipAllowList: []
+    plan: standard
+    postgresMajorVersion: '15'
+    initialDatabase: lexicon_books

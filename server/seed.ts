@@ -163,7 +163,7 @@ const INITIAL_BOOKS = [
 export async function seedIfEmpty() {
   const { rows } = await query('SELECT COUNT(*) FROM books');
   if (parseInt(rows[0].count) === 0) {
-    console.log('[seed] Seeding database with initial books...');
+    if (process.env.LOG_ENABLED !== 'false') console.log('[seed] Seeding database with initial books...');
     for (const book of INITIAL_BOOKS) {
       await query(
         'INSERT INTO books (id, title, author, description, price, cover_image, isbn, genre, stock, rating, year, featured) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)',
@@ -183,9 +183,9 @@ export async function seedIfEmpty() {
         ]
       );
     }
-    console.log('[seed] Seeding complete.');
+    if (process.env.LOG_ENABLED !== 'false') console.log('[seed] Seeding complete.');
   } else {
-    console.log('[seed] Books already exist, skipping book seed.');
+    if (process.env.LOG_ENABLED !== 'false') console.log('[seed] Books already exist, skipping book seed.');
   }
 
   // Ensure admin user exists
@@ -193,7 +193,7 @@ export async function seedIfEmpty() {
   const adminPass = process.env.ADMIN_PASSWORD || 'adminpassword123';
   const { rows: adminRows } = await query('SELECT id FROM users WHERE email = $1', [adminEmail]);
   if (adminRows.length === 0) {
-    console.log('[seed] Creating default admin user...');
+    if (process.env.LOG_ENABLED !== 'false') console.log('[seed] Creating default admin user...');
     const { hashPassword } = await import('./auth');
     const id = newId();
     const hash = await hashPassword(adminPass);
@@ -202,8 +202,8 @@ export async function seedIfEmpty() {
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [id, adminEmail, hash, 'System Admin', 'https://ui-avatars.com/api/?name=Admin&background=1d4ed8&color=fff', 'admin']
     );
-    console.log('[seed] Admin user created.');
+    if (process.env.LOG_ENABLED !== 'false') console.log('[seed] Admin user created.');
   } else {
-    console.log('[seed] Admin user already exists.');
+    if (process.env.LOG_ENABLED !== 'false') console.log('[seed] Admin user already exists.');
   }
 }
