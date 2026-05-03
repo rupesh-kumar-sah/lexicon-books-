@@ -7,6 +7,7 @@ import { ShieldCheck, ArrowLeft, MapPin, Navigation, Loader2, CheckCircle2, Doll
 import { Link, useNavigate } from 'react-router-dom';
 import { orderApi } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { useEffect } from 'react';
 
 const MAP_CONTAINER_STYLE = {
   width: '100%',
@@ -19,7 +20,7 @@ export default function Checkout() {
   const { settings } = useSiteSettings();
   const [shippingLocation, setShippingLocation] = useState<'ktm' | 'outside'>('ktm');
   const { items, total, clearCart } = useCart();
-  const { user } = useAuth();
+  const { user, openAuthModal } = useAuth();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -33,6 +34,17 @@ export default function Checkout() {
     country: 'Nepal',
     locationCoords: null as { lat: number; lng: number } | null,
   });
+
+  useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        email: user.email,
+        firstName: user.displayName.split(' ')[0] || prev.firstName,
+        lastName: user.displayName.split(' ').slice(1).join(' ') || prev.lastName,
+      }));
+    }
+  }, [user]);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGeolocating, setIsGeolocating] = useState(false);
@@ -101,6 +113,12 @@ export default function Checkout() {
       return;
     }
 
+    if (!user) {
+      setError('You must be logged in to complete your purchase.');
+      setIsProcessing(false);
+      return;
+    }
+
     try {
       const { orderId } = await orderApi.create({
         items: items.map((i) => ({
@@ -111,7 +129,12 @@ export default function Checkout() {
           price: i.price,
           quantity: i.quantity,
         })),
-        customer: formData,
+        customer: {
+          ...formData,
+          email: user.email,
+          firstName: formData.firstName || user.displayName.split(' ')[0] || '',
+          lastName: formData.lastName || user.displayName.split(' ').slice(1).join(' ') || '',
+        },
       });
       clearCart();
       navigate(`/order-success?id=${orderId}`);
@@ -270,12 +293,26 @@ export default function Checkout() {
             </div>
           )}
 
+          {(!user && (
+            <div className="mb-6 rounded-2xl border border-rose-100 bg-rose-50 p-5 text-rose-700">
+              <p className="font-bold">Login required to complete checkout.</p>
+              <p className="text-sm text-rose-600 mt-1">Please sign in or create an account before placing your order.</p>
+              <button
+                type="button"
+                onClick={openAuthModal}
+                className="mt-4 inline-flex items-center justify-center px-6 py-3 rounded-xl bg-rose-600 text-white text-sm font-bold hover:bg-rose-700 transition-all"
+              >
+                Login or Sign Up
+              </button>
+            </div>
+          )) || null}
+
           <button
             type="submit"
-            disabled={isProcessing}
+            disabled={isProcessing || !user}
             className="w-full flex items-center justify-center space-x-3 bg-blue-600 text-white px-8 py-5 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20 disabled:opacity-50"
           >
-            <span>{isProcessing ? 'Processing...' : `Place Order — Rs.${finalTotal.toFixed(2)}`}</span>
+            <span>{isProcessing ? 'Processing...' : !user ? 'Login to checkout' : `Place Order — Rs.${finalTotal.toFixed(2)}`}</span>
           </button>
         </form>
 
