@@ -11,7 +11,7 @@ const Cart = lazy(() => import('./pages/Cart'));
 const Wishlist = lazy(() => import('./pages/Wishlist'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Checkout = lazy(() => import('./pages/Checkout'));
-const SecureAdminDashboard = lazy(() => import('./pages/SecureAdminDashboard'));
+const Admin = lazy(() => import('./pages/Admin'));
 const OrderSuccess = lazy(() => import('./pages/OrderSuccess'));
 const OrderDetail = lazy(() => import('./pages/OrderDetail'));
 const Privacy = lazy(() => import('./pages/Privacy'));
@@ -30,8 +30,10 @@ export default function App() {
     <Router>
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          {/* Secure Admin Portal - Only accessible via secret path */}
-          <Route path="/admin-dashboard-secret-2063/*" element={<SecureAdminDashboard />} />
+          {/* Isolated Admin Route */}
+          {import.meta.env.VITE_ADMIN_PATH && (
+            <Route path={`${import.meta.env.VITE_ADMIN_PATH}/*`} element={<Admin />} />
+          )}
 
           {/* Public App with Layout */}
           <Route

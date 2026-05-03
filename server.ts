@@ -13,7 +13,6 @@ import wishlistRoutes from './server/routes/wishlist';
 import orderRoutes from './server/routes/orders';
 import sqlRoutes from './server/routes/sql';
 import adminRoutes from './server/routes/admin';
-import adminPortalRoutes from './server/routes/admin-portal';
 import { seedIfEmpty } from './server/seed';
 import { ensureSchema } from './server/schema';
 import { query } from './server/db';
@@ -145,14 +144,9 @@ async function startServer() {
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
-  
-  // Logging - disabled in production
-  if (process.env.NODE_ENV !== 'production' && process.env.LOG_ENABLED !== 'false') {
-    app.use(morgan('dev'));
-  }
-  
+  app.use(morgan('dev'));
   app.use(attachUser);
-  
+
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
@@ -163,15 +157,13 @@ async function startServer() {
   app.use('/api/orders', orderRoutes);
   app.use('/api/sql', sqlRoutes);
   app.use('/api/admin', adminRoutes);
-  app.use('/api/admin-portal', adminPortalRoutes);
 
   // Ensure schema exists, then seed DB on startup if empty
   ensureSchema()
     .then(async () => {
       await seedIfEmpty();
       // Pre-warm the database and cache
-      const logEnabled = process.env.LOG_ENABLED !== 'false' && process.env.NODE_ENV !== 'production';
-      if (logEnabled) console.log('[System] Pre-warming database and cache for ultra-fast response...');
+      console.log('[Security] Pre-warming database and cache for ultra-fast response...');
       const prewarm = [
         query('SELECT genre, COUNT(*)::text AS count FROM books GROUP BY genre'),
         query('SELECT * FROM books WHERE featured = true LIMIT 8'),
@@ -179,9 +171,9 @@ async function startServer() {
         query('SELECT * FROM site_settings WHERE id = \'default\''),
       ];
       await Promise.all(prewarm).catch(() => {});
-      if (logEnabled) console.log('[System] Cache warmed. System ready at peak speed.');
+      console.log('[Security] Cache warmed. System ready at peak speed.');
     })
-    .catch((e) => console.error('[Database Init] Failed:', e));
+    .catch((e) => console.error('[db init] failed:', e));
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -210,9 +202,7 @@ async function startServer() {
   });
 
   app.listen(PORT, '0.0.0.0', () => {
-    if (process.env.LOG_ENABLED !== 'false' || process.env.NODE_ENV !== 'production') {
-      console.log(`Server running on http://localhost:${PORT}`);
-    }
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 
