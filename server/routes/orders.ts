@@ -4,21 +4,13 @@ import { newId, requireAuth } from '../auth';
 
 const router = Router();
 
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', async (req, res) => {
   const { items, customer } = req.body || {};
   if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'No items in order' });
   }
-  if (!customer || !customer?.firstName || !customer?.address || !customer?.phone) {
-    return res.status(400).json({ error: 'Missing customer information (name, address, and phone are required)' });
-  }
-
-  const customerEmail = customer.email?.toLowerCase() || req.user!.email.toLowerCase();
-  const customerFirstName = customer.firstName || req.user!.displayName.split(' ')[0] || '';
-  const customerLastName = customer.lastName || req.user!.displayName.split(' ').slice(1).join(' ') || '';
-
-  if (customer.email && customer.email.toLowerCase() !== req.user!.email.toLowerCase()) {
-    return res.status(400).json({ error: 'Order email must match your authenticated account email' });
+  if (!customer?.email || !customer?.firstName || !customer?.address || !customer?.phone) {
+    return res.status(400).json({ error: 'Missing customer information (email, name, address, and phone are required)' });
   }
 
   const client = await pool.connect();
@@ -75,7 +67,7 @@ router.post('/', requireAuth, async (req, res) => {
     const total = subtotal + shipping;
 
     const id = newId();
-    const customerName = `${customerFirstName} ${customerLastName || ''}`.trim();
+    const customerName = `${customer.firstName} ${customer.lastName || ''}`.trim();
     const shippingAddress = `${customer.address}, ${customer.city || ''} ${customer.zip || ''}, ${customer.country || ''}`.trim();
 
     await client.query(
@@ -83,8 +75,8 @@ router.post('/', requireAuth, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11, 'pending')`,
       [
         id,
-        req.user!.id,
-        customerEmail,
+        req.user?.id || null,
+        customer.email,
         customerName,
         customer.phone,
         shippingAddress,
