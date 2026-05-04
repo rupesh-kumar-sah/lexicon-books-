@@ -13,7 +13,7 @@ This repository is ready to deploy on Render with automatic environment variable
 ## How to use
 
 1. Create the service in Render and connect it to your `main` branch.
-2. Create Render secrets for the required values:
+2. Create Render environment groups or secrets for the required values:
    - `DATABASE_URL`
    - `ADMIN_DATABASE_URL`
    - `JWT_SECRET`
