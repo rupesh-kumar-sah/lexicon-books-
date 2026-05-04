@@ -13,32 +13,32 @@ services:
       - key: PORT
         value: "5000"
       - key: DATABASE_URL
-        group: DATABASE_URL
+        fromSecret: DATABASE_URL
       - key: ADMIN_DATABASE_URL
-        group: ADMIN_DATABASE_URL
+        fromSecret: ADMIN_DATABASE_URL
       - key: JWT_SECRET
-        group: JWT_SECRET
+        fromSecret: JWT_SECRET
       - key: SESSION_SECRET
-        group: SESSION_SECRET
+        fromSecret: SESSION_SECRET
       - key: ADMIN_EMAIL
-        group: ADMIN_EMAIL
+        fromSecret: ADMIN_EMAIL
       - key: ADMIN_PIN
-        group: ADMIN_PIN
+        fromSecret: ADMIN_PIN
       - key: ADMIN_SECRET_PATH
-        group: ADMIN_SECRET_PATH
+        fromSecret: ADMIN_SECRET_PATH
       - key: VITE_ADMIN_PATH
-        group: VITE_ADMIN_PATH
+        fromSecret: VITE_ADMIN_PATH
       - key: GROQ_API_KEY
-        group: GROQ_API_KEY
+        fromSecret: GROQ_API_KEY
       - key: VITE_GROQ_API_KEY
-        group: VITE_GROQ_API_KEY
+        fromSecret: VITE_GROQ_API_KEY
       - key: GOOGLE_MAPS_API_KEY
-        group: GOOGLE_MAPS_API_KEY
+        fromSecret: GOOGLE_MAPS_API_KEY
       - key: FRONTEND_URL
-        group: FRONTEND_URL
+        fromSecret: FRONTEND_URL
       - key: LOG_ENABLED
         value: "false"
       - key: LOG_LEVEL
         value: error
       - key: RENDER_EXTERNAL_URL
-        group: RENDER_EXTERNAL_URL
+        fromSecret: RENDER_EXTERNAL_URL
