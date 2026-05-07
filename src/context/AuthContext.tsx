@@ -8,6 +8,7 @@ interface AuthContextType {
   signIn: (email: string, password: string, adminData?: { latitude: number; longitude: number; device: string }) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateProfile: (data: { displayName?: string; photoURL?: string }) => Promise<void>;
   isAdmin: boolean;
   authModalOpen: boolean;
   openAuthModal: () => void;
@@ -70,6 +71,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const updateProfile = useCallback(async (data: { displayName?: string; photoURL?: string }) => {
+    const res = await authApi.updateProfile(data);
+    setUser(res.user);
+  }, []);
+
   return (
     <AuthContext.Provider
       value={{
@@ -78,6 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signUp,
         signOut,
+        updateProfile,
         isAdmin: user?.role === 'admin',
         authModalOpen,
         openAuthModal: () => setAuthModalOpen(true),

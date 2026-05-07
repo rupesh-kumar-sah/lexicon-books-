@@ -77,6 +77,11 @@ export const authApi = {
     }),
   logout: () => request<{ ok: true }>('/api/auth/logout', { method: 'POST' }),
   me: () => request<{ user: AuthUser }>('/api/auth/me'),
+  updateProfile: (input: { displayName?: string; photoURL?: string }) =>
+    request<{ user: AuthUser }>('/api/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
 };
 
 // Books

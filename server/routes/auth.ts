@@ -160,4 +160,48 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
+router.patch('/profile', requireAuth, async (req, res) => {
+  try {
+    const { displayName, photoURL } = req.body || {};
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (displayName) {
+      params.push(displayName.trim());
+      updates.push(`display_name = $${params.length}`);
+    }
+    if (photoURL !== undefined) {
+      params.push(photoURL);
+      updates.push(`photo_url = $${params.length}`);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No update data provided' });
+    }
+
+    params.push(req.user!.id);
+    await query(`UPDATE users SET ${updates.join(', ')} WHERE id = $${params.length}`, params);
+
+    const result = await query(
+      'SELECT id, email, display_name, photo_url, role, created_at FROM users WHERE id = $1',
+      [req.user!.id]
+    );
+    const u = result.rows[0];
+
+    res.json({
+      user: {
+        id: u.id,
+        email: u.email,
+        displayName: u.display_name,
+        photoURL: u.photo_url,
+        role: u.role,
+        createdAt: u.created_at,
+      },
+    });
+  } catch (e: any) {
+    console.error('profile update error', e);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
 export default router;
