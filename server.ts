@@ -44,8 +44,8 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 5000;
 
-  // Trust proxy for correct IP detection behind reverse proxies
-  app.set('trust proxy', true);
+  // Trust proxy for correct IP detection behind reverse proxies (1 level for Render/Cloudflare)
+  app.set('trust proxy', 1);
 
   // Security headers
   app.use(helmet({
