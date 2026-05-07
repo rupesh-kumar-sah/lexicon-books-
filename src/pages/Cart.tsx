@@ -3,7 +3,6 @@ import { useCart } from '../context/CartContext';
 import { useSiteSettings } from '../context/SiteSettingsContext';
 import { Trash2, Plus, Minus, ArrowRight, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { SHIPPING_FEE, FREE_SHIPPING_THRESHOLD } from '../constants';
 
 export default function Cart() {
   const { settings } = useSiteSettings();
@@ -111,7 +110,7 @@ export default function Cart() {
               {!isFreeShipping && (
                 <div className="p-3 bg-blue-50 rounded-lg border border-blue-100">
                    <p className="text-[10px] text-blue-700 font-bold uppercase tracking-tight">
-                    Add ${(FREE_SHIPPING_THRESHOLD - subtotal).toFixed(2)} for free shipping.
+                    Add Rs.{(settings.freeShippingThreshold - subtotal).toFixed(2)} for free shipping.
                   </p>
                 </div>
               )}
