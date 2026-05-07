@@ -52,7 +52,7 @@ import { useToast } from '../context/ToastContext';
 import { useSiteSettings } from '../context/SiteSettingsContext';
 import { useNavigate, Link } from 'react-router-dom';
 
-type Tab = 'dashboard' | 'inventory' | 'orders' | 'users' | 'themes';
+type Tab = 'dashboard' | 'inventory' | 'orders' | 'users' | 'settings';
 
 export default function Admin() {
   const { isAdmin, loading: authLoading } = useAuth();
@@ -96,7 +96,7 @@ export default function Admin() {
     inventory: 'Inventory',
     orders: 'Orders',
     users: 'Users',
-    themes: 'Themes',
+    settings: 'Site Settings',
   };
 
   return (
@@ -110,7 +110,7 @@ export default function Admin() {
               { id: 'inventory' as Tab, icon: BookIcon, label: 'Inventory' },
               { id: 'orders' as Tab, icon: ShoppingBag, label: 'Orders' },
               { id: 'users' as Tab, icon: UsersIcon, label: 'Users' },
-              { id: 'themes' as Tab, icon: Palette, label: 'Themes' },
+              { id: 'settings' as Tab, icon: Settings, label: 'Site Settings' },
             ].map((item) => (
               <button
                 key={item.id}
@@ -163,7 +163,7 @@ export default function Admin() {
         {activeTab === 'inventory' && <InventoryView key={refreshKey} onEdit={openEdit} />}
         {activeTab === 'orders' && <OrdersView />}
         {activeTab === 'users' && <UsersView />}
-        {activeTab === 'themes' && <ThemesView />}
+        {activeTab === 'settings' && <ThemesView />}
 
         <AnimatePresence>
           {modalMode && (
