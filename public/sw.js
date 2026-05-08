@@ -1,12 +1,11 @@
-const CACHE_NAME = 'booksellnp-v1';
+const CACHE_NAME = 'booksellnp-v1.1';
 const ASSETS = [
-  '/',
-  '/index.html',
   '/logo.png',
   '/manifest.webmanifest'
 ];
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(ASSETS);
@@ -14,20 +13,34 @@ self.addEventListener('install', (event) => {
   );
 });
 
-self.addEventListener('fetch', (event) => {
-  // Only cache GET requests
-  if (event.request.method !== 'GET') return;
-
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      // Return cached response if found
-      if (response) return response;
-
-      // Otherwise fetch from network
-      return fetch(event.request).then((networkResponse) => {
-        // Don't cache API calls or external images here (browser cache handles those)
-        return networkResponse;
-      });
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      );
     })
   );
+});
+
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // Network-first for HTML and root to prevent stale app versions
+  if (event.request.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match('/'))
+    );
+    return;
+  }
+
+  // Cache-first for images and manifests
+  if (ASSETS.includes(url.pathname)) {
+    event.respondWith(
+      caches.match(event.request).then((response) => {
+        return response || fetch(event.request);
+      })
+    );
+    return;
+  }
 });

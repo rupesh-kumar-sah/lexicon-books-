@@ -47,26 +47,24 @@ async function startServer() {
   // Trust proxy for correct IP detection behind reverse proxies (1 level for Render/Cloudflare)
   app.set('trust proxy', 1);
 
-  // Security headers
+  // Security headers with relaxed CSP for Vite production builds
   app.use(helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://maps.googleapis.com"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "https://*", "blob:"],
         connectSrc: ["'self'", "https://*", "wss://*", "ws://*"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        fontSrc: ["'self'", "data:", "https://fonts.gstatic.com"],
         objectSrc: ["'none'"],
+        mediaSrc: ["'self'", "https://*"],
+        frameSrc: ["'self'", "https://*"],
         upgradeInsecureRequests: [],
       },
     },
-    hsts: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true,
-    },
     crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
   }));
 
   // Data Sanitization
@@ -182,13 +180,30 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.resolve(__dirname, 'dist');
+    
+    // Serve static files with proper cache headers
     app.use(express.static(distPath, {
-      maxAge: '1d',
+      maxAge: '1h', // Shorter cache for initial troubleshooting
       etag: true,
+      index: false // We handle index.html manually via the catch-all
     }));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+
+    // Catch-all route to serve index.html for SPA routing
+    app.get('*', (req, res) => {
+      // Don't serve index.html for missing assets or API calls
+      if (req.path.startsWith('/api/') || req.path.includes('.')) {
+        console.warn(`[404] Resource not found: ${req.path}`);
+        return res.status(404).send('Not Found');
+      }
+      
+      const indexPath = path.join(distPath, 'index.html');
+      res.sendFile(indexPath, (err) => {
+        if (err) {
+          console.error('[Server] Failed to send index.html:', err);
+          res.status(500).send('Application Error: Could not load frontend. Please ensure "npm run build" has been executed.');
+        }
+      });
     });
   }
 
