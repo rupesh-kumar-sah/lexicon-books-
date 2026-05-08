@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Menu, X, Heart, Search, User as UserIcon, LayoutDashboard, Compass } from 'lucide-react';
+import { ShoppingCart, Menu, X, Heart, Search, User as UserIcon, LayoutDashboard, Compass, ShoppingBag } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
@@ -271,8 +271,5 @@ export default function Navbar() {
       {/* Spacer to prevent content from going under fixed navbar */}
       <div className="h-20" />
     </>
-  );
-}
-
   );
 }
