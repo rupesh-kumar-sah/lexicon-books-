@@ -16,40 +16,40 @@ services:
         value: "5000"
 
       - key: DATABASE_URL
-        fromSecret: DATABASE_URL
+        sync: false
 
       - key: ADMIN_DATABASE_URL
-        fromSecret: ADMIN_DATABASE_URL
+        sync: false
 
       - key: JWT_SECRET
-        fromSecret: JWT_SECRET
+        sync: false
 
       - key: SESSION_SECRET
-        fromSecret: SESSION_SECRET
+        sync: false
 
       - key: ADMIN_EMAIL
-        fromSecret: ADMIN_EMAIL
+        sync: false
 
       - key: ADMIN_PIN
-        fromSecret: ADMIN_PIN
+        sync: false
 
       - key: ADMIN_SECRET_PATH
-        fromSecret: ADMIN_SECRET_PATH
+        sync: false
 
       - key: VITE_ADMIN_PATH
-        fromSecret: VITE_ADMIN_PATH
+        sync: false
 
       - key: GROQ_API_KEY
-        fromSecret: GROQ_API_KEY
+        sync: false
 
       - key: VITE_GROQ_API_KEY
-        fromSecret: VITE_GROQ_API_KEY
+        sync: false
 
       - key: GOOGLE_MAPS_API_KEY
-        fromSecret: GOOGLE_MAPS_API_KEY
+        sync: false
 
       - key: FRONTEND_URL
-        fromSecret: FRONTEND_URL
+        sync: false
 
       - key: LOG_ENABLED
         value: "false"
@@ -58,4 +58,4 @@ services:
         value: "error"
 
       - key: RENDER_EXTERNAL_URL
-        fromSecret: RENDER_EXTERNAL_URL
+        sync: false
