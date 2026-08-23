@@ -25,6 +25,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     async function init() {
+      const googleToken = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('google_token');
+      if (googleToken) {
+        setToken(googleToken);
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+      }
       const token = getToken();
       if (!token) {
         setLoading(false);

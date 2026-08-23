@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import crypto from 'crypto';
+import { google } from 'googleapis';
 import { query } from '../db';
 import {
   hashPassword,
@@ -13,6 +15,74 @@ const router = Router();
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
+const GOOGLE_SCOPES = ['openid', 'email', 'profile'];
+
+function googleOAuthClient() {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  if (!clientId || !clientSecret || !redirectUri) return null;
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+}
+
+function signGoogleState(value: string) {
+  const secret = process.env.SESSION_SECRET || process.env.JWT_SECRET || 'change-me';
+  return crypto.createHmac('sha256', secret).update(value).digest('hex');
+}
+
+function createGoogleState() {
+  const payload = `${Date.now()}:${crypto.randomBytes(18).toString('hex')}`;
+  return `${Buffer.from(payload).toString('base64url')}.${signGoogleState(payload)}`;
+}
+
+function validGoogleState(state: string) {
+  const [encoded, signature] = state.split('.');
+  if (!encoded || !signature) return false;
+  const payload = Buffer.from(encoded, 'base64url').toString('utf8');
+  const expected = signGoogleState(payload);
+  if (!/^[0-9a-f]+$/i.test(signature) || signature.length !== expected.length) return false;
+  const validSignature = crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  const createdAt = Number(payload.split(':', 1)[0]);
+  return validSignature && Number.isFinite(createdAt) && Date.now() - createdAt < 10 * 60 * 1000;
+}
+
+router.get('/google', (req, res) => {
+  const client = googleOAuthClient();
+  if (!client) return res.status(503).json({ error: 'Google sign-in is not configured' });
+  const state = createGoogleState();
+  const url = client.generateAuthUrl({ access_type: 'offline', prompt: 'select_account', scope: GOOGLE_SCOPES, state });
+  res.redirect(url);
+});
+
+router.get('/google/callback', async (req, res) => {
+  const client = googleOAuthClient();
+  const code = typeof req.query.code === 'string' ? req.query.code : '';
+  const state = typeof req.query.state === 'string' ? req.query.state : '';
+  if (!client || !code || !validGoogleState(state)) return res.status(400).send('Invalid or expired Google sign-in request.');
+  try {
+    const { tokens } = await client.getToken(code);
+    client.setCredentials(tokens);
+    const profile = await google.oauth2({ version: 'v2', auth: client }).userinfo.get();
+    const email = profile.data.email?.toLowerCase();
+    if (!email || profile.data.verified_email === false) return res.status(403).send('Google account email could not be verified.');
+
+    const existing = await query<any>('SELECT id, email, display_name, photo_url, role, created_at FROM users WHERE email = $1', [email]);
+    let user = existing.rows[0];
+    if (!user) {
+      const id = newId();
+      await query(
+        `INSERT INTO users (id, email, password_hash, display_name, photo_url, role) VALUES ($1, $2, NULL, $3, $4, 'user')`,
+        [id, email, profile.data.name || email.split('@')[0], profile.data.picture || null],
+      );
+      user = { id, email, display_name: profile.data.name || email.split('@')[0], photo_url: profile.data.picture || null, role: 'user', created_at: new Date().toISOString() };
+    }
+    const token = await createSession(user.id);
+    res.redirect(`/#google_token=${encodeURIComponent(token)}`);
+  } catch (error) {
+    console.error('google sign-in error', error);
+    res.status(502).send('Google sign-in could not be completed.');
+  }
+});
 
 router.post('/signup', async (req, res) => {
   try {

@@ -4,7 +4,7 @@ const STATEMENTS: string[] = [
   `CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT,
     display_name TEXT NOT NULL,
     photo_url TEXT,
     role TEXT NOT NULL DEFAULT 'user',
@@ -105,6 +105,7 @@ const STATEMENTS: string[] = [
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
   `INSERT INTO site_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING`,
+  `ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL`,
 ];
 
 export async function ensureSchema(): Promise<void> {

@@ -104,7 +104,7 @@ async function main() {
           customer.name,
           customer.phone,
           `${i + 10} Staging Avenue, ${customer.city}, STG 000${i + 1}, Test Country`,
-          JSON.stringify({ latitude: 27.7172 + i / 100, longitude: 85.324 + i / 100 }),
+          JSON.stringify({ lat: 27.7172 + i / 100, lng: 85.324 + i / 100 }),
           JSON.stringify(items),
           subtotal,
           shipping,

@@ -28,8 +28,17 @@ import {
   Mail,
   Phone,
   MapPin,
+  RefreshCw,
+  ExternalLink,
+  Copy,
+  ChevronDown,
+  Clock,
+  CheckCircle2,
+  Truck,
+  XCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -184,6 +193,31 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const PIE_COLORS = ['#2563eb', '#7c3aed', '#dc2626', '#16a34a', '#ea580c', '#0891b2'];
+
+
+const ADMIN_MAP_CENTER = { lat: 27.7172, lng: 85.324 };
+
+type Coordinates = { lat: number; lng: number };
+
+function normalizeLocationCoords(raw: unknown): Coordinates | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const value = raw as Record<string, unknown>;
+  const lat = Number(value.lat ?? value.latitude);
+  const lng = Number(value.lng ?? value.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return null;
+  }
+  return { lat, lng };
+}
+
+const ORDER_STATUS_META: Record<OrderStatus, { label: string; icon: any; tone: string }> = {
+  pending: { label: 'Pending', icon: Clock, tone: 'text-amber-700 bg-amber-50 border-amber-200' },
+  processing: { label: 'Processing', icon: Package, tone: 'text-blue-700 bg-blue-50 border-blue-200' },
+  shipped: { label: 'Shipped', icon: Truck, tone: 'text-violet-700 bg-violet-50 border-violet-200' },
+  delivered: { label: 'Delivered', icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
+  cancelled: { label: 'Cancelled', icon: XCircle, tone: 'text-rose-700 bg-rose-50 border-rose-200' },
+};
+
 
 function DashboardView() {
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -402,31 +436,42 @@ function OrdersView() {
   const [searchInput, setSearchInput] = useState('');
   const [updating, setUpdating] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [lastRefreshed, setLastRefreshed] = useState<number | null>(null);
+  const mapsApiKey = (import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY || '';
+  const { isLoaded: mapsLoaded, loadError: mapsLoadError } = useJsApiLoader({
+    id: 'admin-google-map-script',
+    googleMapsApiKey: mapsApiKey,
+  });
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput.trim()), 300);
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const reload = () => {
+  const reload = async () => {
     setLoading(true);
-    adminApi
-      .orders({
+    try {
+      const res = await adminApi.orders({
         status: statusFilter === 'all' ? undefined : statusFilter,
         search: search || undefined,
         limit: 200,
-      })
-      .then((res) => {
-        if (res && Array.isArray(res.orders)) {
-          setOrders(res.orders);
-        }
-      })
-      .catch((e) => toast.error(e.message || 'Failed to load orders'))
-      .finally(() => setLoading(false));
+      });
+      if (res && Array.isArray(res.orders)) {
+        setOrders(res.orders.map((order: AdminOrder) => ({
+          ...order,
+          locationCoords: normalizeLocationCoords(order.locationCoords),
+        })));
+        setLastRefreshed(Date.now());
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to load orders');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(reload, [statusFilter, search]);
+  useEffect(() => { void reload(); }, [statusFilter, search]);
 
   const updateStatus = async (id: string, status: OrderStatus) => {
     setUpdating(id);
@@ -447,6 +492,7 @@ function OrdersView() {
     try {
       await adminApi.deleteOrder(id);
       setOrders((prev) => prev.filter((o) => o.id !== id));
+      if (expanded === id) setExpanded(null);
       toast.success('Order deleted');
     } catch (e: any) {
       toast.error(e.message || 'Failed to delete');
@@ -455,20 +501,56 @@ function OrdersView() {
     }
   };
 
+  const copyOrderId = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id);
+      toast.success('Full order ID copied');
+    } catch {
+      toast.error('Could not copy order ID');
+    }
+  };
+
   const statusOptions: (OrderStatus | 'all')[] = ['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+  const statusCounts = orders.reduce<Record<string, number>>((counts, order) => {
+    counts[order.status] = (counts[order.status] || 0) + 1;
+    return counts;
+  }, {});
+  const totalVisibleValue = orders.reduce((sum, order) => sum + order.total, 0);
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col md:flex-row gap-4 items-stretch md:items-center">
-        <div className="relative flex-1">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-sm">
+          <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Visible orders</p>
+          <p className="text-2xl font-bold mt-1">{orders.length}</p>
+          <p className="text-[11px] text-slate-400 mt-1">Rs.{totalVisibleValue.toFixed(2)} value</p>
+        </div>
+        {(['pending', 'processing', 'shipped', 'delivered'] as OrderStatus[]).map((status) => {
+          const meta = ORDER_STATUS_META[status];
+          const Icon = meta.icon;
+          return (
+            <div key={status} className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">{meta.label}</p>
+                <Icon className="w-4 h-4 text-slate-400" />
+              </div>
+              <p className="text-2xl font-bold text-slate-900 mt-1">{statusCounts[status] || 0}</p>
+              <p className="text-[11px] text-slate-400 mt-1">Current filter</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col xl:flex-row gap-4 items-stretch xl:items-center">
+        <div className="relative flex-1 min-w-0">
           <input
             type="text"
-            placeholder="Search by email, name, or order ID..."
+            placeholder="Search by email, name, phone, address, or order ID..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 outline-none"
+            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 outline-none"
           />
-          <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
         </div>
         <div className="flex flex-wrap gap-2">
           {statusOptions.map((s) => (
@@ -486,6 +568,18 @@ function OrdersView() {
             </button>
           ))}
         </div>
+        <button
+          onClick={() => void reload()}
+          disabled={loading}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        >
+          <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+          Refresh
+        </button>
+      </div>
+      <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
+        <p>{lastRefreshed ? `Updated ${new Date(lastRefreshed).toLocaleTimeString()}` : 'Waiting for order data'}</p>
+        <p>Open an order to view customer, payment, items, coordinates, and map</p>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -500,169 +594,192 @@ function OrdersView() {
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
-            {orders.map((o) => (
-              <div key={o.id} className="p-6">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1">
-                      <p className="font-bold text-slate-900">{o.customerName || o.customerEmail}</p>
-                      <div className={cn('text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border', STATUS_COLORS[o.status])}>
-                        {o.status}
+            {orders.map((o) => {
+              const meta = ORDER_STATUS_META[o.status];
+              const StatusIcon = meta.icon;
+              const isOpen = expanded === o.id;
+              return (
+                <div key={o.id} className={cn('p-5 md:p-6 transition-colors', isOpen && 'bg-blue-50/20')}>
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="flex gap-3 min-w-0 flex-1">
+                      <div className={cn('mt-0.5 w-9 h-9 rounded-xl border flex items-center justify-center shrink-0', meta.tone)}>
+                        <StatusIcon className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-slate-900">{o.customerName || o.customerEmail}</p>
+                          <div className={cn('text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border', STATUS_COLORS[o.status])}>
+                            {o.status}
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1 truncate">
+                          #{o.id.slice(0, 8).toUpperCase()} · {o.customerEmail} · {new Date(o.createdAt).toLocaleString()}
+                        </p>
+                        <div className="flex items-center gap-3 mt-2 text-[11px] font-semibold text-slate-500 flex-wrap">
+                          <span>{o.items.length} {o.items.length === 1 ? 'item' : 'items'}</span>
+                          <span className="text-slate-300">•</span>
+                          <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{o.locationCoords ? 'Pinned location' : 'No location pin'}</span>
+                          <span className="text-slate-300">•</span>
+                          <span>{o.customerPhone || 'No phone'}</span>
+                        </div>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-400">
-                      #{o.id.slice(0, 8)} · {o.customerEmail} · {new Date(o.createdAt).toLocaleString()} · {o.items.length} items
-                    </p>
+                    <div className="flex items-center gap-3 ml-auto">
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-slate-900">Rs.{o.total.toFixed(2)}</p>
+                        <p className="text-[10px] uppercase tracking-widest text-slate-400">Order total</p>
+                      </div>
+                      <select
+                        value={o.status}
+                        disabled={updating === o.id}
+                        onChange={(e) => void updateStatus(o.id, e.target.value as OrderStatus)}
+                        className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer focus:ring-2 focus:ring-blue-500/30 outline-none disabled:opacity-50"
+                        aria-label={`Update status for order ${o.id}`}
+                      >
+                        {(['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as OrderStatus[]).map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => setExpanded(isOpen ? null : o.id)}
+                        className={cn('inline-flex items-center gap-1 px-3 py-2 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-colors', isOpen ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-50')}
+                      >
+                        {isOpen ? 'Hide details' : 'View details'}
+                        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', isOpen && 'rotate-180')} />
+                      </button>
+                      <button
+                        onClick={() => void removeOrder(o.id)}
+                        disabled={updating === o.id}
+                        className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg disabled:opacity-50"
+                        title="Delete order"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-slate-900">Rs.{o.total.toFixed(2)}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={o.status}
-                      disabled={updating === o.id}
-                      onChange={(e) => updateStatus(o.id, e.target.value as OrderStatus)}
-                      className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 cursor-pointer focus:ring-2 focus:ring-blue-500/30 outline-none disabled:opacity-50"
-                    >
-                      {(['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as OrderStatus[]).map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => setExpanded(expanded === o.id ? null : o.id)}
-                      className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:bg-blue-50 rounded-lg"
-                    >
-                      {expanded === o.id ? 'Hide' : 'Items'}
-                    </button>
-                    <button
-                      onClick={() => removeOrder(o.id)}
-                      disabled={updating === o.id}
-                      className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg disabled:opacity-50"
-                      title="Delete order"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
 
-                <AnimatePresence>
-                  {expanded === o.id && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="mt-4 pt-4 border-t border-slate-100 space-y-6">
-                        {o.status === 'cancelled' && (
-                          <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-600 text-xs font-bold flex items-center gap-2">
-                            <Trash2 className="w-4 h-4" />
-                            This order has been cancelled and any reserved stock has been returned.
+                  <AnimatePresence>
+                    {isOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-5 pt-5 border-t border-slate-200 space-y-5">
+                          <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Order reference</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <code className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded">{o.id}</code>
+                                <button onClick={() => void copyOrderId(o.id)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Copy full order ID"><Copy className="w-3.5 h-3.5" /></button>
+                              </div>
+                            </div>
+                            <a
+                              href={`mailto:${o.customerEmail}`}
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100"
+                            >
+                              <Mail className="w-3.5 h-3.5" /> Contact customer
+                            </a>
                           </div>
-                        )}
-                        
-                        <div className="grid md:grid-cols-3 gap-6">
-                          <div>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Shipping To</p>
-                            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                              <p className="font-bold text-slate-900 text-sm mb-1">{o.customerName}</p>
-                              <p className="text-xs text-slate-600 leading-relaxed mb-3">{o.shippingAddress}</p>
-                              <div className="flex items-center gap-2 text-xs font-bold text-blue-600">
+
+                          {o.status === 'cancelled' && (
+                            <div className="p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-600 text-xs font-bold flex items-center gap-2">
+                              <Trash2 className="w-4 h-4" />
+                              This order has been cancelled and reserved stock has been returned.
+                            </div>
+                          )}
+
+                          <div className="grid lg:grid-cols-3 gap-5">
+                            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Customer & delivery</p>
+                              <p className="font-bold text-slate-900 text-sm">{o.customerName || 'Unnamed customer'}</p>
+                              <a href={`mailto:${o.customerEmail}`} className="text-xs text-blue-600 hover:underline break-all">{o.customerEmail}</a>
+                              <p className="text-xs text-slate-600 leading-relaxed mt-3">{o.shippingAddress || 'No shipping address provided'}</p>
+                              <div className="flex items-center gap-2 text-xs font-bold text-blue-600 mt-3">
                                 <Phone className="w-3.5 h-3.5" />
                                 {o.customerPhone || 'No phone provided'}
                               </div>
                               <p className="text-[10px] text-slate-400 mt-4 uppercase tracking-tighter">Placed on {new Date(o.createdAt).toLocaleString()}</p>
                             </div>
-                          </div>
 
-                          <div>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Payment Summary</p>
-                            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2 text-sm">
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Subtotal</span>
-                                <span className="font-bold text-slate-900">Rs.{o.subtotal.toFixed(2)}</span>
+                            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Payment summary</p>
+                              <div className="space-y-3 text-sm">
+                                <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="font-bold text-slate-900">Rs.{o.subtotal.toFixed(2)}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-500">Shipping</span><span className="font-bold text-slate-900">Rs.{o.shipping.toFixed(2)}</span></div>
+                                <div className="flex justify-between pt-3 border-t border-slate-200"><span className="font-bold text-slate-900">Total</span><span className="font-bold text-blue-700">Rs.{o.total.toFixed(2)}</span></div>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-500">Shipping</span>
-                                <span className="font-bold text-slate-900">Rs.{o.shipping.toFixed(2)}</span>
-                              </div>
-                              <div className="flex justify-between pt-2 border-t border-slate-200">
-                                <span className="font-bold text-slate-900">Total</span>
-                                <span className="font-bold text-blue-700">Rs.{o.total.toFixed(2)}</span>
+                              <div className={cn('mt-5 inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-[10px] font-bold uppercase tracking-widest', meta.tone)}>
+                                <StatusIcon className="w-3.5 h-3.5" /> {meta.label}
                               </div>
                             </div>
 
-                            {o.locationCoords ? (
-                              <div className="mt-6">
-                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Pinned Delivery Location</p>
-                                <div className="bg-slate-50 rounded-2xl overflow-hidden border border-slate-100">
-                                  <div className="aspect-video bg-slate-200 relative group">
-                                    <img 
-                                      src={`https://maps.googleapis.com/maps/api/staticmap?center=${o.locationCoords.lat},${o.locationCoords.lng}&zoom=15&size=400x250&markers=color:red%7C${o.locationCoords.lat},${o.locationCoords.lng}&key=${(import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY}`}
-                                      alt="Delivery Location Map"
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).style.display = 'none';
-                                        (e.target as HTMLImageElement).parentElement!.classList.add('flex', 'items-center', 'justify-center', 'text-slate-400', 'text-[10px]');
-                                        (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="text-center p-4">Google Maps Key Error or Static Map API Disabled</div>';
-                                      }}
-                                    />
-                                    <a 
-                                      href={`https://www.google.com/maps?q=${o.locationCoords.lat},${o.locationCoords.lng}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-2"
-                                    >
-                                      <MapPin className="w-4 h-4" />
-                                      Open in Google Maps
-                                    </a>
-                                  </div>
-                                  <div className="p-3 text-[10px] font-bold text-slate-400 text-center uppercase tracking-widest">
-                                    Coords: {o.locationCoords.lat.toFixed(5)}, {o.locationCoords.lng.toFixed(5)}
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="mt-6 p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                No coordinate data for this order
-                              </div>
-                            )}
+                            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Items ({o.items.length})</p>
+                              <ul className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                                {o.items.map((it: any, i: number) => (
+                                  <li key={i} className="flex gap-2 bg-white p-2 rounded-xl border border-slate-100">
+                                    <img src={it.coverImage} alt="" className="w-8 h-11 object-cover rounded border border-slate-100" referrerPolicy="no-referrer" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-bold text-slate-900 text-xs truncate">{it.title}</p>
+                                      <p className="text-[10px] text-slate-400 truncate">{it.author}</p>
+                                      <div className="flex justify-between items-center mt-1"><span className="text-[10px] font-bold text-slate-500">Qty: {it.quantity}</span><span className="text-xs font-bold text-blue-700">Rs.{(it.price * it.quantity).toFixed(2)}</span></div>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
                           </div>
 
-                          <div>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Items ({o.items.length})</p>
-                            <ul className="space-y-3">
-                              {o.items.map((it: any, i: number) => (
-                                <li key={i} className="flex gap-3 bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm transition-all hover:shadow-md">
-                                  <img
-                                    src={it.coverImage}
-                                    alt=""
-                                    className="w-10 h-14 object-cover rounded border border-slate-100 shadow-sm"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-bold text-slate-900 text-xs truncate leading-tight mb-0.5">{it.title}</p>
-                                    <p className="text-[10px] text-slate-400 mb-2 truncate">{it.author}</p>
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-[10px] font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded">
-                                        Qty: {it.quantity}
-                                      </span>
-                                      <span className="text-xs font-bold text-blue-700">Rs.{(it.price * it.quantity).toFixed(2)}</span>
-                                    </div>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
+                          <div className="bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden">
+                            <div className="p-5 flex items-center justify-between gap-3 flex-wrap">
+                              <div>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Delivery location</p>
+                                <p className="text-sm font-bold text-slate-900 mt-1">{o.locationCoords ? 'Interactive customer pin' : 'No coordinate captured'}</p>
+                                {o.locationCoords && <p className="text-[11px] text-slate-500 mt-1">{o.locationCoords.lat.toFixed(5)}, {o.locationCoords.lng.toFixed(5)}</p>}
+                              </div>
+                              {o.locationCoords && (
+                                <a
+                                  href={`https://www.google.com/maps/dir/?api=1&destination=${o.locationCoords.lat},${o.locationCoords.lng}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs font-bold text-blue-700 hover:bg-blue-50"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" /> Open directions
+                                </a>
+                              )}
+                            </div>
+                            {o.locationCoords ? (
+                              mapsLoadError || !mapsApiKey ? (
+                                <div className="h-64 bg-slate-200 flex flex-col items-center justify-center text-slate-500 gap-2">
+                                  <MapPin className="w-8 h-8" />
+                                  <p className="text-xs font-bold">Interactive map unavailable</p>
+                                  <p className="text-[11px]">Use the coordinates or open directions above.</p>
+                                </div>
+                              ) : mapsLoaded ? (
+                                <GoogleMap
+                                  mapContainerStyle={{ width: '100%', height: '260px' }}
+                                  center={o.locationCoords}
+                                  zoom={16}
+                                  options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: true, clickableIcons: false }}
+                                >
+                                  <Marker position={o.locationCoords} title={`Delivery for ${o.customerName || o.customerEmail}`} />
+                                </GoogleMap>
+                              ) : (
+                                <div className="h-64 bg-slate-200 flex items-center justify-center text-slate-500 text-xs gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading interactive map...</div>
+                              )
+                            ) : (
+                              <div className="h-36 flex flex-col items-center justify-center text-slate-400 gap-2"><MapPin className="w-7 h-7" /><p className="text-xs font-medium">This order has no saved location pin.</p></div>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

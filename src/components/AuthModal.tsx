@@ -144,6 +144,20 @@ export default function AuthModal() {
                 {mode === 'signin' ? 'Sign In' : 'Create Account'}
               </button>
 
+              {mode === 'signin' && (
+                <>
+                  <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-slate-400"><span className="h-px flex-1 bg-slate-200" />Or<span className="h-px flex-1 bg-slate-200" /></div>
+                  <button
+                    type="button"
+                    onClick={() => { window.location.href = '/api/auth/google'; }}
+                    className="w-full border border-slate-200 text-slate-700 font-bold py-3.5 rounded-xl hover:bg-slate-50 transition flex items-center justify-center gap-2"
+                  >
+                    <span className="text-base font-black">G</span>
+                    Continue with Google
+                  </button>
+                </>
+              )}
+
               <div className="text-center text-sm text-slate-500">
                 {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
                 <button

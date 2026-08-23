@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool, query } from '../db';
 import { newId, requireAuth } from '../auth';
+import { notifyOrderCreated } from '../integrations/google';
 
 const router = Router();
 
@@ -97,6 +98,23 @@ router.post('/', requireAuth, async (req, res) => {
     );
 
     await client.query('COMMIT');
+    void notifyOrderCreated({
+      id,
+      customerEmail,
+      customerName,
+      customerPhone: customer.phone,
+      shippingAddress,
+      locationCoords: customer.locationCoords ? {
+        lat: Number(customer.locationCoords.lat ?? customer.locationCoords.latitude),
+        lng: Number(customer.locationCoords.lng ?? customer.locationCoords.longitude),
+      } : null,
+      items,
+      subtotal,
+      shipping,
+      total,
+      status: 'pending',
+      createdAt: new Date(),
+    });
     res.json({ orderId: id, subtotal, shipping, total });
   } catch (e: any) {
     await client.query('ROLLBACK').catch(() => {});

@@ -14,6 +14,7 @@ import orderRoutes from './server/routes/orders';
 import sqlRoutes from './server/routes/sql';
 import adminRoutes from './server/routes/admin';
 import aiRoutes from './server/routes/ai';
+import { googleIntegrationStatus, syncFullAppSnapshot } from './server/integrations/google';
 import { seedIfEmpty } from './server/seed';
 import { ensureSchema } from './server/schema';
 import { query } from './server/db';
@@ -174,7 +175,7 @@ async function startServer() {
   });
 
   app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', timestamp: new Date().toISOString(), integrations: googleIntegrationStatus() });
   });
 
   app.use('/api/auth', authRoutes);
@@ -199,6 +200,7 @@ async function startServer() {
       ];
       await Promise.all(prewarm).catch(() => {});
       console.log('[Security] Cache warmed. System ready at peak speed.');
+      void syncFullAppSnapshot();
     })
     .catch((e) => console.error('[db init] failed:', e));
 
