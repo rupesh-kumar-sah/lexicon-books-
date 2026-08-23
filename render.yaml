@@ -46,6 +46,45 @@ services:
       - key: GOOGLE_MAPS_API_KEY
         sync: false
 
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+
+      - key: GOOGLE_REFRESH_TOKEN
+        sync: false
+
+      - key: GMAIL_SENDER
+        sync: false
+
+      - key: ORDER_NOTIFICATION_EMAIL
+        sync: false
+
+      - key: GOOGLE_SHEETS_SPREADSHEET_ID
+        sync: false
+
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+
+      - key: GOOGLE_SHEETS_ORDER_RANGE
+        sync: false
+
+      - key: GOOGLE_SHEETS_BOOK_RANGE
+        sync: false
+
+      - key: GOOGLE_SHEETS_USER_RANGE
+        sync: false
+
+      - key: PASSWORD_RESET_TTL_MINUTES
+        value: "30"
+
+      - key: PUBLIC_BASE_URL
+        sync: false
+
       - key: FRONTEND_URL
         sync: false
 
