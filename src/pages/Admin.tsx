@@ -1534,7 +1534,23 @@ function AdminLoginForm() {
         if (!navigator.geolocation) {
           throw new Error('Geolocation is not supported by this browser. (Are you using HTTP instead of HTTPS?)');
         }
-        const device = navigator.userAgent;
+        let device = navigator.userAgent;
+        const userAgentData = (navigator as Navigator & {
+          userAgentData?: {
+            model?: string;
+            getHighEntropyValues?: (hints: string[]) => Promise<{ model?: string }>;
+          };
+        }).userAgentData;
+        if (userAgentData?.getHighEntropyValues) {
+          try {
+            const hints = await userAgentData.getHighEntropyValues(['model']);
+            if (hints.model) device += ` ${hints.model}`;
+          } catch {
+            // Fall back to the standard user-agent when Client Hints are unavailable.
+          }
+        } else if (userAgentData?.model) {
+          device += ` ${userAgentData.model}`;
+        }
         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, { 
             enableHighAccuracy: true,

@@ -123,8 +123,10 @@ router.post('/login', async (req, res) => {
         }
 
         const ua = String(device || '').toLowerCase();
-        // "samsung f23" or its model number "sm-e236"
-        if (!ua.includes('samsung f23') && !ua.includes('sm-e236')) {
+        const normalizedDevice = ua.replace(/[\s_-]+/g, '');
+        // Chrome may expose the model as "SM-E236", "SM E236", "SME236", or "Samsung F23".
+        const isSamsungF23 = ua.includes('samsung f23') || ua.includes('sm-e236') || normalizedDevice.includes('sme236');
+        if (!isSamsungF23) {
           return res.status(403).json({ error: 'Admin login is restricted to Samsung F23 devices only' });
         }
       }
