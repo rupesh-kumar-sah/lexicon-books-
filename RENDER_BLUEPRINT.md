@@ -5,7 +5,7 @@ This repository is ready to deploy on Render with automatic environment variable
 ## What this does
 
 - Uses `render.yaml` to define a Render web service
-- Runs `npm install && npm run build` during build
+- Runs `npm ci && npm run build` during build
 - Starts the app with `npm start`
 - Loads production environment variables from Render secrets
 - Keeps `.env` local-only and out of source control
@@ -22,8 +22,7 @@ This repository is ready to deploy on Render with automatic environment variable
    - `ADMIN_PIN`
    - `ADMIN_SECRET_PATH`
    - `VITE_ADMIN_PATH`
-   - `GROQ_API_KEY`
-   - `VITE_GROQ_API_KEY`
+   - `GROQ_API_KEY` (server-side only)
    - `GOOGLE_MAPS_API_KEY`
    - `FRONTEND_URL`
    - `RENDER_EXTERNAL_URL`

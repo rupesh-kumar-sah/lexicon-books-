@@ -43,9 +43,6 @@ services:
       - key: GROQ_API_KEY
         sync: false
 
-      - key: VITE_GROQ_API_KEY
-        sync: false
-
       - key: GOOGLE_MAPS_API_KEY
         sync: false
 

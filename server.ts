@@ -13,6 +13,7 @@ import wishlistRoutes from './server/routes/wishlist';
 import orderRoutes from './server/routes/orders';
 import sqlRoutes from './server/routes/sql';
 import adminRoutes from './server/routes/admin';
+import aiRoutes from './server/routes/ai';
 import { seedIfEmpty } from './server/seed';
 import { ensureSchema } from './server/schema';
 import { query } from './server/db';
@@ -182,6 +183,7 @@ async function startServer() {
   app.use('/api/orders', orderRoutes);
   app.use('/api/sql', sqlRoutes);
   app.use('/api/admin', adminRoutes);
+  app.use('/api/ai', aiRoutes);
 
   // Ensure schema exists, then seed DB on startup if empty
   ensureSchema()

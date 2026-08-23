@@ -39,37 +39,25 @@ export default function AIAssistant() {
     if (!input.trim() || isLoading) return;
 
     const userMessage = input.trim();
+    const chatMessages = [...messages, { role: 'user' as const, content: userMessage }];
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setMessages(chatMessages);
     setIsLoading(true);
 
     try {
-      const apiKey = (import.meta as any).env?.VITE_GROQ_API_KEY || (process.env as any)?.GROQ_API_KEY;
-      
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const response = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
-          messages: [
-            { 
-              role: 'system', 
-              content: 'You are the official AI Assistant and Book Curator for "BookSellNP", a premium online bookstore based in Nepal. You are helpful, sophisticated, and knowledgeable about all genres of literature. Your job is to help users find books, explain themes, assist with their reading journey, and answer questions about the BookSellNP platform. Important details: The currency is Nepalese Rupees (Rs.). We offer Cash on Delivery (COD) as our primary payment method. We have a special collection of "Old is Gold" books available. Users can browse books, add them to cart, wishlist them, and write reviews. Admins can manage inventory, upload book covers, and track orders. The platform is a modern web app built with React, Node.js, and PostgreSQL. Keep responses concise, engaging, and specifically tailored to the BookSellNP experience.' + catalogContext 
-            },
-            ...messages,
-            { role: 'user', content: userMessage }
-          ],
-          temperature: 0.7,
-          max_tokens: 500
-        })
+          messages: chatMessages,
+          catalogContext,
+        }),
       });
 
       const data = await response.json();
-      const assistantMessage = data.choices[0]?.message?.content || 'I apologize, I am having trouble connecting to my knowledge base right now.';
-      
+      if (!response.ok) throw new Error(data?.error || 'AI assistant request failed');
+      const assistantMessage = data.message || 'I apologize, I am having trouble connecting to my knowledge base right now.';
+
       setMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
     } catch (error) {
       console.error('Groq AI Error:', error);
