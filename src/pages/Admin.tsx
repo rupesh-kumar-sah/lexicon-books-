@@ -52,7 +52,7 @@ import {
   Cell,
   Legend,
 } from 'recharts';
-import { adminApi, bookApi } from '../lib/api';
+import { adminApi, authApi, bookApi } from '../lib/api';
 import { cn } from '../lib/utils';
 import { GENRES } from '../constants';
 import { AdminOrder, AdminStats, AdminUser, Book, OrderStatus, SiteSettings } from '../types';
@@ -1637,13 +1637,21 @@ function AdminLoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [resetMode, setResetMode] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setResetMessage(null);
     setLoading(true);
     try {
+      if (resetMode) {
+        await authApi.requestPasswordReset(email.trim());
+        setResetMessage('If an admin account exists for that email, a reset link will be sent shortly.');
+        return;
+      }
       // In development mode, skip geolocation requirement
       if (import.meta.env.DEV) {
         await signIn(email.trim(), password, { latitude: 0, longitude: 0, device: 'development' });
@@ -1703,39 +1711,71 @@ function AdminLoginForm() {
           Secure login requires location and verified device.
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Email</label>
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Password</label>
-            <input
-              required
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
-            />
-          </div>
-          {error && (
-            <div className="bg-rose-50 text-rose-600 text-sm p-3 rounded-xl border border-rose-100">
-              {error}
-            </div>
+          {resetMode ? (
+            <>
+              <p className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">Request a one-time reset link for the admin email. Admin access still requires Samsung F23 verification and location after the password is changed.</p>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Admin email</label>
+                <input
+                  required
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+              {resetMessage && <div className="bg-emerald-50 text-emerald-700 text-sm p-3 rounded-xl border border-emerald-100">{resetMessage}</div>}
+              {error && <div className="bg-rose-50 text-rose-600 text-sm p-3 rounded-xl border border-rose-100">{error}</div>}
+              <button
+                disabled={loading}
+                type="submit"
+                className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl hover:bg-rose-600 transition-colors shadow-lg disabled:opacity-60 flex items-center justify-center gap-2 mt-4"
+              >
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Send Admin Reset Link
+              </button>
+              <button type="button" onClick={() => { setResetMode(false); setResetMessage(null); setError(null); }} className="w-full text-sm font-bold text-slate-600 hover:text-rose-600">Back to Admin Sign In</button>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Email</label>
+                <input
+                  required
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Password</label>
+                <input
+                  required
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+              <div className="text-right">
+                <button type="button" onClick={() => { setResetMode(true); setResetMessage(null); setError(null); }} className="text-sm font-bold text-rose-600 hover:underline">Forgot admin password?</button>
+              </div>
+              {error && (
+                <div className="bg-rose-50 text-rose-600 text-sm p-3 rounded-xl border border-rose-100">
+                  {error}
+                </div>
+              )}
+              <button
+                disabled={loading}
+                type="submit"
+                className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl hover:bg-rose-600 transition-colors shadow-lg disabled:opacity-60 flex items-center justify-center gap-2 mt-4"
+              >
+                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Verify & Sign In
+              </button>
+            </>
           )}
-          <button
-            disabled={loading}
-            type="submit"
-            className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl hover:bg-rose-600 transition-colors shadow-lg disabled:opacity-60 flex items-center justify-center gap-2 mt-4"
-          >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            Verify & Sign In
-          </button>
         </form>
       </div>
     </div>
