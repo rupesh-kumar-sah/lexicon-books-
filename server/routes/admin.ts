@@ -5,19 +5,12 @@ import { getCache, setCache } from '../cache';
 
 const router = Router();
 
-// Extra Security Firewall: Validate a secret security token for all admin requests
+// Public storefront settings are intentionally readable; every operational admin endpoint
+// is protected by the authenticated admin session on its handler below. No admin secret is
+// embedded in the public bundle or sent as a client-side header.
 router.use((req, res, next) => {
-  // Storefront theme/settings are intentionally public; all other admin routes require the firewall token.
   if (req.method === 'GET' && req.path === '/settings') return next();
-
-  const secretToken = req.headers['x-admin-security-token'];
-  const expectedToken = process.env.ADMIN_SECRET_PATH;
-
-  if (!expectedToken || typeof secretToken !== 'string' || secretToken !== expectedToken) {
-    console.warn(`Blocked unauthorized admin API attempt from ${req.ip}`);
-    return res.status(403).json({ error: 'Security Firewall: Access Denied' });
-  }
-  next();
+  return requireAdmin(req, res, next);
 });
 
 const ALLOWED_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const;

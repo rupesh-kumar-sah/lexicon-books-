@@ -189,8 +189,8 @@ export async function seedIfEmpty() {
   }
 
   // Ensure admin user exists
-  const adminEmail = (process.env.ADMIN_EMAIL || (process.env.NODE_ENV === 'production' ? '' : 'admin@lexicon.com')).toLowerCase();
-  const adminPass = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'adminpassword123');
+  const adminEmail = (process.env.ADMIN_EMAIL || '').toLowerCase();
+  const adminPass = process.env.ADMIN_PASSWORD || '';
   if (!adminEmail || !adminPass) {
     throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must be configured before production startup.');
   }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Menu, X, Heart, Search, User as UserIcon, LayoutDashboard, Compass, ShoppingBag } from 'lucide-react';
+import { ShoppingCart, Menu, X, Heart, Search, User as UserIcon,  Compass, ShoppingBag } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
@@ -16,7 +16,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { itemCount } = useCart();
-  const { user, signOut, openAuthModal, isAdmin } = useAuth();
+  const { user, signOut, openAuthModal } = useAuth();
   const { settings } = useSiteSettings();
   
   const brandPrimary = settings.siteName.split(' ')[0] || settings.siteName;
@@ -132,15 +132,6 @@ export default function Navbar() {
                     </p>
                   </div>
                 </Link>
-                {isAdmin && (
-                  <Link 
-                    to="/admin-dashboard-secret-2063" 
-                    className="hidden xl:flex items-center gap-2 p-2.5 bg-slate-900 text-white rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-slate-900/10"
-                    title="Admin Dashboard"
-                  >
-                    <LayoutDashboard className="w-5 h-5" />
-                  </Link>
-                )}
               </div>
             ) : (
               <button

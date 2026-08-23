@@ -15,7 +15,7 @@ export type IntegrationOrder = {
   createdAt?: Date | string | number;
 };
 
-const ADMIN_EMAIL = process.env.ORDER_NOTIFICATION_EMAIL || 'sahkkr702@gmail.com';
+const ADMIN_EMAIL = process.env.ORDER_NOTIFICATION_EMAIL || '';
 const SHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
 const SHEET_ORDER_RANGE = process.env.GOOGLE_SHEETS_ORDER_RANGE || 'Orders!A:O';
 const SHEET_BOOK_RANGE = process.env.GOOGLE_SHEETS_BOOK_RANGE || 'Books!A:H';
