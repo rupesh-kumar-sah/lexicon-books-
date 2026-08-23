@@ -3,14 +3,17 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User, BookOpen, Loader2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { authApi } from '../lib/api';
 
 export default function AuthModal() {
   const { authModalOpen, closeAuthModal, signIn, signUp } = useAuth();
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [forgotMode, setForgotMode] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const reset = () => {
@@ -18,6 +21,8 @@ export default function AuthModal() {
     setPassword('');
     setDisplayName('');
     setError(null);
+    setResetMessage(null);
+    setForgotMode(false);
     setSubmitting(false);
   };
 
@@ -29,8 +34,14 @@ export default function AuthModal() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setResetMessage(null);
     setSubmitting(true);
     try {
+      if (forgotMode) {
+        await authApi.requestPasswordReset(email.trim());
+        setResetMessage('If an account exists for that email, a reset link will be sent shortly.');
+        return;
+      }
       if (mode === 'signin') {
         await signIn(email.trim(), password);
       } else {
@@ -76,14 +87,44 @@ export default function AuthModal() {
                 <span className="text-xs font-bold uppercase tracking-widest opacity-80">BookSellNP</span>
               </div>
               <h2 className="text-2xl font-bold tracking-tight">
-                {mode === 'signin' ? 'Welcome back' : 'Create your account'}
+                {forgotMode ? 'Reset your password' : mode === 'signin' ? 'Welcome back' : 'Create your account'}
               </h2>
               <p className="text-sm text-blue-100 mt-1">
-                {mode === 'signin' ? 'Sign in to continue your reading journey.' : 'Join the modern literary portal.'}
+                {forgotMode ? 'We will send a secure, time-limited reset link.' : mode === 'signin' ? 'Sign in to continue your reading journey.' : 'Join the modern literary portal.'}
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="p-8 space-y-5">
+              {forgotMode ? (
+                <>
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Email</label>
+                    <div className="relative mt-1.5">
+                      <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
+                      <input
+                        required
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="reader@booksellnp.com"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                      />
+                    </div>
+                  </div>
+                  {resetMessage && <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">{resetMessage}</div>}
+                  {error && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">{error}</div>}
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/20 active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                    Send Reset Link
+                  </button>
+                  <button type="button" onClick={() => { setForgotMode(false); setResetMessage(null); setError(null); }} className="w-full text-sm font-bold text-blue-600 hover:underline">Back to Sign In</button>
+                </>
+              ) : (
+              <>
               {mode === 'signup' && (
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Name</label>
@@ -129,6 +170,12 @@ export default function AuthModal() {
                 </div>
               </div>
 
+              {mode === 'signin' && (
+                <div className="text-right">
+                  <button type="button" onClick={() => { setForgotMode(true); setError(null); setResetMessage(null); }} className="text-sm font-bold text-blue-600 hover:underline">Forgot password?</button>
+                </div>
+              )}
+
               {error && (
                 <div className="text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">
                   {error}
@@ -164,6 +211,8 @@ export default function AuthModal() {
                   type="button"
                   onClick={() => {
                     setError(null);
+                    setResetMessage(null);
+                    setForgotMode(false);
                     setMode(mode === 'signin' ? 'signup' : 'signin');
                   }}
                   className="font-bold text-blue-600 hover:underline"
@@ -171,6 +220,8 @@ export default function AuthModal() {
                   {mode === 'signin' ? 'Sign up' : 'Sign in'}
                 </button>
               </div>
+              </>
+              )}
             </form>
           </motion.div>
         </div>

@@ -16,6 +16,7 @@ const OrderSuccess = lazy(() => import('./pages/OrderSuccess'));
 const OrderDetail = lazy(() => import('./pages/OrderDetail'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Terms = lazy(() => import('./pages/Terms'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 
 function PageLoader() {
   return (
@@ -50,6 +51,7 @@ export default function App() {
                   <Route path="/checkout" element={<Checkout />} />
                   <Route path="/privacy" element={<Privacy />} />
                   <Route path="/terms" element={<Terms />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/order-success" element={<OrderSuccess />} />
                   <Route path="/order/:id" element={<OrderDetail />} />
                 </Routes>

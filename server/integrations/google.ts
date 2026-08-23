@@ -67,6 +67,48 @@ function orderLines(order: IntegrationOrder) {
   return order.items.map((item) => `- ${item.title || 'Book'} × ${item.quantity || 0} @ Rs.${Number(item.price || 0).toFixed(2)}`).join('\n');
 }
 
+async function sendGmailMessage(to: string, subject: string, body: string): Promise<boolean> {
+  if (!configuredForEmail()) {
+    console.info('[Google] Email skipped: Gmail credentials are not configured.');
+    return false;
+  }
+  const auth = createAuth(['https://www.googleapis.com/auth/gmail.send']);
+  if (!auth) return false;
+  const gmail = google.gmail({ version: 'v1', auth });
+  const raw = encodeMime(
+    {
+      From: process.env.GMAIL_SENDER || ADMIN_EMAIL,
+      To: to,
+      Subject: subject,
+      'Content-Type': 'text/plain; charset=UTF-8',
+    },
+    body,
+  );
+  await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
+  return true;
+}
+
+export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
+  try {
+    const sent = await sendGmailMessage(
+      to,
+      '[Lexicon Books] Reset your password',
+      [
+        'We received a request to reset your Lexicon Books password.',
+        '',
+        `Use this one-time link within ${process.env.PASSWORD_RESET_TTL_MINUTES || '30'} minutes:`,
+        resetUrl,
+        '',
+        'If you did not request this, you can safely ignore this message.',
+        'For your security, never share this link with anyone.',
+      ].join('\n'),
+    );
+    if (sent) console.info('[Google] Password-reset email sent.');
+  } catch (error) {
+    console.error('[Google] Password-reset email failed:', error instanceof Error ? error.message : error);
+  }
+}
+
 export async function notifyOrderCreated(order: IntegrationOrder): Promise<void> {
   if (!configuredForEmail()) {
     console.info('[Google] Order email skipped: configure ORDER_NOTIFICATION_EMAIL plus Gmail OAuth or service-account credentials.');

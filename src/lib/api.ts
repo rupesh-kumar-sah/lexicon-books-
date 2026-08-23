@@ -82,6 +82,16 @@ export const authApi = {
       method: 'PATCH',
       body: JSON.stringify(input),
     }),
+  requestPasswordReset: (email: string) =>
+    request<{ message: string }>('/api/auth/password-reset/request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (token: string, password: string) =>
+    request<{ message: string }>('/api/auth/password-reset/complete', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    }),
 };
 
 // Books

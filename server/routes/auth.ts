@@ -10,12 +10,35 @@ import {
   newId,
   requireAuth,
 } from '../auth';
+import { sendPasswordResetEmail } from '../integrations/google';
 
 const router = Router();
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
 const GOOGLE_SCOPES = ['openid', 'email', 'profile'];
+const RESET_TTL_MINUTES = Math.max(10, Math.min(120, Number(process.env.PASSWORD_RESET_TTL_MINUTES || 30)));
+const resetRequestWindows = new Map<string, { count: number; resetAt: number }>();
+
+function normalizeEmail(value: unknown) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function hashResetToken(token: string) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function canRequestReset(key: string) {
+  const now = Date.now();
+  const existing = resetRequestWindows.get(key);
+  if (!existing || existing.resetAt <= now) {
+    resetRequestWindows.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    return true;
+  }
+  if (existing.count >= 5) return false;
+  existing.count += 1;
+  return true;
+}
 
 function googleOAuthClient() {
   const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -81,6 +104,77 @@ router.get('/google/callback', async (req, res) => {
   } catch (error) {
     console.error('google sign-in error', error);
     res.status(502).send('Google sign-in could not be completed.');
+  }
+});
+
+router.post('/password-reset/request', async (req, res) => {
+  const genericResponse = { message: 'If an account exists for that email, a password reset link will be sent shortly.' };
+  const email = normalizeEmail(req.body?.email);
+  const requestKey = `${req.ip || 'unknown'}:${email || 'invalid'}`;
+  if (!email || !canRequestReset(requestKey)) return res.json(genericResponse);
+
+  try {
+    const result = await query<{ id: string }>('SELECT id FROM users WHERE email = $1', [email]);
+    if (result.rows.length === 0) return res.json(genericResponse);
+
+    const rawToken = crypto.randomBytes(32).toString('base64url');
+    const tokenHash = hashResetToken(rawToken);
+    const tokenId = newId();
+    const expiresAt = new Date(Date.now() + RESET_TTL_MINUTES * 60 * 1000);
+    await query('DELETE FROM password_reset_tokens WHERE user_id = $1 OR expires_at <= NOW()', [result.rows[0].id]);
+    await query(
+      'INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)',
+      [tokenId, result.rows[0].id, tokenHash, expiresAt],
+    );
+
+    const baseUrl = process.env.PUBLIC_BASE_URL || process.env.FRONTEND_URL;
+    if (baseUrl) {
+      const resetUrl = new URL('/reset-password', baseUrl);
+      resetUrl.searchParams.set('token', rawToken);
+      await sendPasswordResetEmail(email, resetUrl.toString());
+    } else {
+      console.error('[Auth] Password reset skipped: PUBLIC_BASE_URL or FRONTEND_URL is not configured.');
+    }
+    return res.json(genericResponse);
+  } catch (error) {
+    console.error('password reset request error', error);
+    return res.json(genericResponse);
+  }
+});
+
+router.post('/password-reset/complete', async (req, res) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (!token || token.length < 32 || password.length < 8) {
+    return res.status(400).json({ error: 'A valid reset token and a password of at least 8 characters are required.' });
+  }
+
+  const tokenHash = hashResetToken(token);
+  const client = await (await import('../db')).pool.connect();
+  try {
+    await client.query('BEGIN');
+    const tokenResult = await client.query<{ user_id: string }>(
+      'SELECT user_id FROM password_reset_tokens WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW() FOR UPDATE',
+      [tokenHash],
+    );
+    if (tokenResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+    }
+
+    const passwordHash = await hashPassword(password);
+    const userId = tokenResult.rows[0].user_id;
+    await client.query('UPDATE users SET password_hash = $1, failed_login_attempts = 0, locked_until = NULL WHERE id = $2', [passwordHash, userId]);
+    await client.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE token_hash = $1', [tokenHash]);
+    await client.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+    await client.query('COMMIT');
+    return res.json({ message: 'Password updated. Please sign in with your new password.' });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    console.error('password reset completion error', error);
+    return res.status(500).json({ error: 'Unable to reset password right now.' });
+  } finally {
+    client.release();
   }
 });
 
