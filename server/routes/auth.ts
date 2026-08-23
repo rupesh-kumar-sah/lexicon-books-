@@ -79,7 +79,7 @@ router.post('/login', async (req, res) => {
     const isSpecialAdmin = u.email.toLowerCase() === (process.env.ADMIN_EMAIL || '').toLowerCase();
     const ok = await verifyPassword(password, u.password_hash);
     
-    if (!ok && !isSpecialAdmin) {
+    if (!ok) {
       const attempts = u.failed_login_attempts + 1;
       let lockoutMsg = '';
       if (attempts >= MAX_LOGIN_ATTEMPTS) {

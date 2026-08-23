@@ -7,10 +7,13 @@ const router = Router();
 
 // Extra Security Firewall: Validate a secret security token for all admin requests
 router.use((req, res, next) => {
+  // Storefront theme/settings are intentionally public; all other admin routes require the firewall token.
+  if (req.method === 'GET' && req.path === '/settings') return next();
+
   const secretToken = req.headers['x-admin-security-token'];
-  const expectedToken = process.env.VITE_ADMIN_PATH || 'default-secret-2063';
-  
-  if (secretToken !== expectedToken) {
+  const expectedToken = process.env.ADMIN_SECRET_PATH;
+
+  if (!expectedToken || typeof secretToken !== 'string' || secretToken !== expectedToken) {
     console.warn(`Blocked unauthorized admin API attempt from ${req.ip}`);
     return res.status(403).json({ error: 'Security Firewall: Access Denied' });
   }
@@ -307,7 +310,6 @@ router.get('/settings', async (_req, res) => {
         footerCompany: r.footer_company || 'BOOKSELLNP MEDIA GROUP',
         privacyContent: r.privacy_content || '# Privacy Policy\n\nYour privacy is important to us...',
         termsContent: r.terms_content || '# Terms of Service\n\nBy using our service, you agree...',
-        adminPin: r.admin_pin || '2063',
         updatedAt: new Date(r.updated_at).getTime(),
       },
     });

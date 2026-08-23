@@ -248,8 +248,13 @@ router.get('/:id/reviews', async (req, res) => {
 router.post('/:id/reviews', requireAuth, async (req, res) => {
   try {
     const { rating, comment } = req.body || {};
-    if (!rating || !comment?.trim()) {
-      return res.status(400).json({ error: 'Rating and comment are required' });
+    const numericRating = Number(rating);
+    const normalizedComment = typeof comment === 'string' ? comment.trim() : '';
+    if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5) {
+      return res.status(400).json({ error: 'Rating must be an integer from 1 to 5' });
+    }
+    if (!normalizedComment || normalizedComment.length > 2000) {
+      return res.status(400).json({ error: 'Comment is required and must be 2000 characters or fewer' });
     }
     
     // Check if user already reviewed
@@ -262,7 +267,7 @@ router.post('/:id/reviews', requireAuth, async (req, res) => {
     await query(
       `INSERT INTO reviews (id, book_id, user_id, user_name, rating, comment)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [id, req.params.id, req.user!.id, req.user!.displayName, Number(rating), comment.trim()]
+      [id, req.params.id, req.user!.id, req.user!.displayName, numericRating, normalizedComment]
     );
     
     clearCache(`books:detail:${req.params.id}`);

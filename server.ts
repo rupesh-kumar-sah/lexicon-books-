@@ -52,7 +52,7 @@ async function startServer() {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://maps.googleapis.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://maps.googleapis.com"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:", "https://*", "blob:"],
         connectSrc: ["'self'", "https://*", "wss://*", "ws://*"],
@@ -137,13 +137,40 @@ async function startServer() {
     }
 
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-admin-security-token');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_INDEXING !== 'true') {
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    }
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
   });
   app.use(morgan('dev'));
   app.use(attachUser);
+
+  app.get('/robots.txt', (req, res) => {
+    const baseUrl = (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    const indexingAllowed = process.env.ALLOW_INDEXING === 'true';
+    res.type('text/plain').send([
+      'User-agent: *',
+      indexingAllowed ? 'Allow: /' : 'Disallow: /',
+      `Sitemap: ${baseUrl}/sitemap.xml`,
+    ].join('\n') + '\n');
+  });
+
+  app.get('/sitemap.xml', async (req, res) => {
+    try {
+      const baseUrl = (process.env.PUBLIC_BASE_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+      const books = await query<{ id: string; created_at: Date }>('SELECT id, created_at FROM books ORDER BY created_at DESC LIMIT 5000');
+      const escapeXml = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+      const urls = ['/', '/catalog', '/privacy', '/terms', ...books.rows.map((book) => `/book/${encodeURIComponent(book.id)}`)];
+      const body = urls.map((url) => `  <url><loc>${escapeXml(baseUrl + url)}</loc></url>`).join('\n');
+      res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`);
+    } catch (error) {
+      console.error('sitemap generation error', error);
+      res.status(500).type('text/plain').send('Sitemap unavailable');
+    }
+  });
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
