@@ -189,8 +189,11 @@ export async function seedIfEmpty() {
   }
 
   // Ensure admin user exists
-  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@lexicon.com').toLowerCase();
-  const adminPass = process.env.ADMIN_PASSWORD || 'adminpassword123';
+  const adminEmail = (process.env.ADMIN_EMAIL || (process.env.NODE_ENV === 'production' ? '' : 'admin@lexicon.com')).toLowerCase();
+  const adminPass = process.env.ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'adminpassword123');
+  if (!adminEmail || !adminPass) {
+    throw new Error('ADMIN_EMAIL and ADMIN_PASSWORD must be configured before production startup.');
+  }
   const { rows: adminRows } = await query('SELECT id FROM users WHERE email = $1', [adminEmail]);
   if (adminRows.length === 0) {
     console.log('[seed] Creating default admin user...');
