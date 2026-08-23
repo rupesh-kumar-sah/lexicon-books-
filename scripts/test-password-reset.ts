@@ -1,8 +1,10 @@
 import crypto from 'crypto';
+import { readFile } from 'node:fs/promises';
 import { pool, query } from '../server/db';
 import { hashPassword, verifyPassword } from '../server/auth';
 
-const baseUrl = 'http://localhost:5000';
+const baseUrl = process.env.TEST_BASE_URL || 'http://localhost:5000';
+const mockEmailFile = process.env.MOCK_EMAIL_FILE;
 const suffix = crypto.randomBytes(6).toString('hex');
 const userId = `password-reset-test-${suffix}`;
 const email = `password-reset-${suffix}@example.test`;
@@ -28,6 +30,14 @@ try {
   const known = await jsonRequest('/api/auth/password-reset/request', { email });
   if (unknown.status !== 200 || known.status !== 200 || unknown.body.message !== known.body.message) {
     throw new Error('Password reset request response is not generic.');
+  }
+
+  if (mockEmailFile) {
+    const messages = (await readFile(mockEmailFile, 'utf8')).trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
+    const resetEmail = messages.find((message) => message.to === email);
+    if (!resetEmail || resetEmail.subject !== '[Lexicon Books] Reset your password' || !resetEmail.body.includes(`${baseUrl}/reset-password?token=`)) {
+      throw new Error('Mock email did not capture a valid reset link for the test account.');
+    }
   }
 
   const generatedToken = await query<{ token_hash: string; used_at: string | null }>(

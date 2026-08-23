@@ -1,4 +1,5 @@
 import { google, sheets_v4 } from 'googleapis';
+import { appendFile } from 'node:fs/promises';
 
 export type IntegrationOrder = {
   id: string;
@@ -72,6 +73,12 @@ function orderLines(order: IntegrationOrder) {
 }
 
 async function sendGmailMessage(to: string, subject: string, body: string): Promise<boolean> {
+  const mockFile = process.env.MOCK_EMAIL_FILE;
+  if (mockFile && process.env.NODE_ENV !== 'production') {
+    await appendFile(mockFile, `${JSON.stringify({ to, subject, body })}\n`, 'utf8');
+    console.info('[Google] Mock email captured.');
+    return true;
+  }
   if (!configuredForGmail()) {
     console.info('[Google] Email skipped: Gmail sender or credentials are not configured.');
     return false;
