@@ -50,8 +50,12 @@ function createAuth(scopes: string[]) {
   return oauth;
 }
 
+function configuredForGmail() {
+  return Boolean((process.env.GMAIL_SENDER || ADMIN_EMAIL) && createAuth(['https://www.googleapis.com/auth/gmail.send']));
+}
+
 function configuredForEmail() {
-  return Boolean(ADMIN_EMAIL && createAuth(['https://www.googleapis.com/auth/gmail.send']));
+  return Boolean(ADMIN_EMAIL && configuredForGmail());
 }
 
 function configuredForSheets() {
@@ -68,8 +72,8 @@ function orderLines(order: IntegrationOrder) {
 }
 
 async function sendGmailMessage(to: string, subject: string, body: string): Promise<boolean> {
-  if (!configuredForEmail()) {
-    console.info('[Google] Email skipped: Gmail credentials are not configured.');
+  if (!configuredForGmail()) {
+    console.info('[Google] Email skipped: Gmail sender or credentials are not configured.');
     return false;
   }
   const auth = createAuth(['https://www.googleapis.com/auth/gmail.send']);

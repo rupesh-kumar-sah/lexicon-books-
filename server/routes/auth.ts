@@ -127,13 +127,19 @@ router.post('/password-reset/request', async (req, res) => {
       [tokenId, result.rows[0].id, tokenHash, expiresAt],
     );
 
-    const baseUrl = process.env.PUBLIC_BASE_URL || process.env.FRONTEND_URL;
+    const baseUrl = process.env.PUBLIC_BASE_URL;
     if (baseUrl) {
-      const resetUrl = new URL('/reset-password', baseUrl);
-      resetUrl.searchParams.set('token', rawToken);
-      await sendPasswordResetEmail(email, resetUrl.toString());
+      try {
+        const parsedBaseUrl = new URL(baseUrl);
+        if (parsedBaseUrl.protocol !== 'https:' && process.env.NODE_ENV === 'production') throw new Error('PUBLIC_BASE_URL must use HTTPS in production');
+        const resetUrl = new URL('/reset-password', parsedBaseUrl);
+        resetUrl.searchParams.set('token', rawToken);
+        await sendPasswordResetEmail(email, resetUrl.toString());
+      } catch (error) {
+        console.error('[Auth] Password reset skipped: PUBLIC_BASE_URL is invalid.');
+      }
     } else {
-      console.error('[Auth] Password reset skipped: PUBLIC_BASE_URL or FRONTEND_URL is not configured.');
+      console.error('[Auth] Password reset skipped: PUBLIC_BASE_URL is not configured.');
     }
     return res.json(genericResponse);
   } catch (error) {
