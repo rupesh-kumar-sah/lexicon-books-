@@ -37,8 +37,10 @@ import {
   CheckCircle2,
   Truck,
   XCircle,
+  Fingerprint,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { startAuthentication, startRegistration, browserSupportsWebAuthn } from '@simplewebauthn/browser';
 import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
 import {
   ResponsiveContainer,
@@ -176,7 +178,7 @@ export default function Admin() {
         {activeTab === 'orders' && <OrdersView />}
         {activeTab === 'users' && <UsersView />}
         {activeTab === 'messages' && <MessagesView />}
-        {activeTab === 'settings' && <ThemesView />}
+        {activeTab === 'settings' && <><ThemesView /><AdminPasskeyPanel /></>}
 
         <AnimatePresence>
           {modalMode && (
@@ -1776,14 +1778,118 @@ function MessagesView() {
   );
 }
 
+async function collectAdminLoginSignals() {
+  if (!navigator.geolocation) {
+    throw new Error('Geolocation is not supported by this browser. Please use Chrome over HTTPS.');
+  }
+
+  let device = `Dell Laptop ${navigator.userAgent}`;
+  const userAgentData = (navigator as Navigator & {
+    userAgentData?: {
+      platform?: string;
+      model?: string;
+      getHighEntropyValues?: (hints: string[]) => Promise<{ platform?: string; model?: string }>;
+    };
+  }).userAgentData;
+  if (userAgentData?.getHighEntropyValues) {
+    try {
+      const hints = await userAgentData.getHighEntropyValues(['platform', 'model']);
+      if (hints.platform) device += ` ${hints.platform}`;
+      if (hints.model) device += ` ${hints.model}`;
+    } catch {
+      // Continue with the standard User-Agent when Client Hints are unavailable.
+    }
+  } else if (userAgentData?.platform || userAgentData?.model) {
+    device += ` ${userAgentData.platform || ''} ${userAgentData.model || ''}`;
+  }
+
+  const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    });
+  });
+  return { latitude: position.coords.latitude, longitude: position.coords.longitude, device };
+}
+
+function AdminPasskeyPanel() {
+  const [enrolled, setEnrolled] = useState(false);
+  const [count, setCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    authApi.passkeyStatus().then((status) => {
+      if (!cancelled) {
+        setEnrolled(status.enrolled);
+        setCount(status.count);
+      }
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  const enrollFaceLock = async () => {
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+    try {
+      if (!browserSupportsWebAuthn()) throw new Error('This browser or device does not support biometric passkeys.');
+      const { challengeId, options } = await authApi.passkeyRegistrationOptions();
+      const response = await startRegistration({ optionsJSON: options });
+      const result = await authApi.passkeyRegistrationVerify(challengeId, response);
+      setEnrolled(result.verified);
+      setCount((current) => current + 1);
+      setMessage(result.message);
+    } catch (err: any) {
+      setError(err?.message || 'Face lock enrollment was cancelled or failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <section className="mt-6 rounded-2xl bg-white border border-slate-200 p-5 sm:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-slate-900">
+            <Fingerprint className="w-5 h-5 text-rose-600" />
+            <h2 className="font-bold">Face lock / passkey</h2>
+          </div>
+          <p className="mt-1 max-w-2xl text-sm text-slate-500">
+            Enroll Windows Hello on this Dell laptop. Chrome may use face recognition, fingerprint, or the device PIN; the server stores only the public credential key.
+          </p>
+          <p className="mt-2 text-xs font-bold uppercase tracking-widest text-slate-400">
+            {enrolled ? `${count} passkey${count === 1 ? '' : 's'} enrolled` : 'No passkey enrolled'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={enrollFaceLock}
+          disabled={loading || !browserSupportsWebAuthn()}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fingerprint className="w-4 h-4" />}
+          {enrolled ? 'Enroll another passkey' : 'Set up face lock'}
+        </button>
+      </div>
+      {message && <p className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-700">{message}</p>}
+      {error && <p className="mt-4 rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
+    </section>
+  );
+}
+
 function AdminLoginForm() {
-  const { signIn } = useAuth();
+  const { signIn, signInWithToken } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resetMode, setResetMode] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [faceLockLoading, setFaceLockLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1796,41 +1902,8 @@ function AdminLoginForm() {
         setResetMessage('If an admin account exists for that email, a reset link will be sent shortly.');
         return;
       }
-      if (!navigator.geolocation) {
-          throw new Error('Geolocation is not supported by this browser. (Are you using HTTP instead of HTTPS?)');
-        }
-        // Desktop browsers do not expose laptop manufacturers in their standard UA.
-        // Send the configured Dell device signal together with the real browser UA.
-        let device = `Dell Laptop ${navigator.userAgent}`;
-        const userAgentData = (navigator as Navigator & {
-          userAgentData?: {
-            platform?: string;
-            model?: string;
-            getHighEntropyValues?: (hints: string[]) => Promise<{ platform?: string; model?: string }>;
-          };
-        }).userAgentData;
-        if (userAgentData?.getHighEntropyValues) {
-          try {
-            const hints = await userAgentData.getHighEntropyValues(['platform', 'model']);
-            if (hints.platform) device += ` ${hints.platform}`;
-            if (hints.model) device += ` ${hints.model}`;
-          } catch {
-            // Fall back to the standard user-agent when Client Hints are unavailable.
-          }
-        } else if (userAgentData?.platform || userAgentData?.model) {
-          device += ` ${userAgentData.platform || ''} ${userAgentData.model || ''}`;
-        }
-        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { 
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-          });
-        });
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
-        await signIn(email.trim(), password, { latitude: lat, longitude: lng, device });
+      const signals = await collectAdminLoginSignals();
+      await signIn(email.trim(), password, signals);
     } catch (err: any) {
       if (err.code === 1) setError('Location permission denied. Please enable it in your browser settings.');
       else if (err.code === 2) setError('Location unavailable. Make sure your device GPS is turned on.');
@@ -1838,6 +1911,28 @@ function AdminLoginForm() {
       else setError(err.message || 'Login failed.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFaceLockLogin = async () => {
+    setError(null);
+    setResetMessage(null);
+    setFaceLockLoading(true);
+    try {
+      if (!browserSupportsWebAuthn()) throw new Error('This browser or device does not support biometric passkeys.');
+      if (!email.trim()) throw new Error('Enter the admin email before using face lock.');
+      const { challengeId, options } = await authApi.passkeyLoginOptions(email.trim());
+      const response = await startAuthentication({ optionsJSON: options });
+      const signals = await collectAdminLoginSignals();
+      const result = await authApi.passkeyLoginVerify({ email: email.trim(), challengeId, response, ...signals });
+      signInWithToken(result.token, result.user);
+    } catch (err: any) {
+      if (err?.code === 1) setError('Location permission denied. Please enable it in your browser settings.');
+      else if (err?.code === 2) setError('Location unavailable. Make sure your device GPS is turned on.');
+      else if (err?.code === 3) setError('Location request timed out.');
+      else setError(err?.message || 'Face lock login was cancelled or failed.');
+    } finally {
+      setFaceLockLoading(false);
     }
   };
 
@@ -1910,13 +2005,23 @@ function AdminLoginForm() {
                 </div>
               )}
               <button
-                disabled={loading}
+                disabled={loading || faceLockLoading}
                 type="submit"
                 className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl hover:bg-rose-600 transition-colors shadow-lg disabled:opacity-60 flex items-center justify-center gap-2 mt-4"
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Verify & Sign In
               </button>
+              <button
+                type="button"
+                onClick={handleFaceLockLogin}
+                disabled={loading || faceLockLoading || !browserSupportsWebAuthn()}
+                className="w-full border border-rose-200 bg-rose-50 text-rose-700 font-bold py-3.5 rounded-xl hover:bg-rose-100 transition-colors disabled:cursor-not-allowed disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {faceLockLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fingerprint className="w-4 h-4" />}
+                Use Face Lock / Passkey
+              </button>
+              <p className="text-center text-xs text-slate-400">Uses Windows Hello or your enrolled platform passkey.</p>
             </>
           )}
         </form>

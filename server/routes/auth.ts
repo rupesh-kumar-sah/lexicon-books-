@@ -16,7 +16,7 @@ import {
   clearRefreshCookie,
 } from '../auth';
 import { sendPasswordResetEmail } from '../integrations/google';
-import { enforceAdminGeoIp } from '../middleware/adminGeoIp';
+import { checkAdminLoginSecurity } from '../adminSecurity';
 
 const router = Router();
 
@@ -281,31 +281,10 @@ router.post('/login', async (req, res) => {
       await query('UPDATE users SET role = $1 WHERE id = $2', ['admin', u.id]);
     }
 
-    // Check device and location for admins
+    // Check device and location for admins before issuing a session.
     if (userRole === 'admin') {
-      const { latitude, longitude, device } = req.body || {};
-
-      if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude)) || !device) {
-        return res.status(401).json({
-          error: 'Admin security verification required. Please allow location access.',
-          requiresAdminVerification: true,
-        });
-      }
-
-      const geoIpResult = await enforceAdminGeoIp(req);
-      if (!geoIpResult.allowed) {
-        return res.status(403).json({ error: 'Admin login is outside the allowed network or location policy' });
-      }
-
-      // Desktop User-Agent strings are spoofable and usually omit the laptop vendor;
-      // combine this signal with role auth, location, GeoIP, and short-lived sessions.
-      const ua = String(device).toLowerCase();
-      const isWindows = /windows nt|win32/.test(ua);
-      const isChrome = /(?:chrome|crios)\//.test(ua) && !/(?:edg|edge|opr|opera|firefox|fxios)\//.test(ua);
-      const isDellLaptop = /\bdell(?:\s+inc\.?)?\b/.test(ua) || /\bdell[\s_-]+laptop\b/.test(ua);
-      if (!isWindows || !isChrome || !isDellLaptop) {
-        return res.status(403).json({ error: 'Admin login is restricted to a Dell laptop running Chrome' });
-      }
+      const security = await checkAdminLoginSecurity(req, req.body || {});
+      if (security.ok === false) return res.status(security.status).json(security.body);
     }
 
     const { token, refreshToken } = await createSessionPair(u.id);

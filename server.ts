@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 
 import { attachUser } from './server/auth';
 import authRoutes from './server/routes/auth';
+import passkeyRoutes from './server/routes/passkeys';
 import bookRoutes from './server/routes/books';
 import wishlistRoutes from './server/routes/wishlist';
 import orderRoutes from './server/routes/orders';
@@ -180,6 +181,7 @@ async function startServer() {
   });
 
   app.use('/api/auth', authRoutes);
+  app.use('/api/auth/passkeys', passkeyRoutes);
   app.use('/api/books', bookRoutes);
   app.use('/api/wishlist', wishlistRoutes);
   app.use('/api/orders', orderRoutes);

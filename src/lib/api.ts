@@ -98,6 +98,23 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ token, password }),
     }),
+  passkeyStatus: () => request<{ enrolled: boolean; count: number }>('/api/auth/passkeys/status'),
+  passkeyRegistrationOptions: () => request<{ challengeId: string; options: any }>('/api/auth/passkeys/register/options', { method: 'POST' }),
+  passkeyRegistrationVerify: (challengeId: string, response: unknown) =>
+    request<{ verified: boolean; message: string }>('/api/auth/passkeys/register/verify', {
+      method: 'POST',
+      body: JSON.stringify({ challengeId, response }),
+    }),
+  passkeyLoginOptions: (email: string) =>
+    request<{ challengeId: string; options: any }>('/api/auth/passkeys/login/options', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  passkeyLoginVerify: (input: { email: string; challengeId: string; response: unknown; latitude: number; longitude: number; device: string }) =>
+    request<{ token: string; user: AuthUser; faceLock: true }>('/api/auth/passkeys/login/verify', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 };
 
 // Customer messages

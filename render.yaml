@@ -85,6 +85,15 @@ services:
       - key: PUBLIC_BASE_URL
         sync: false
 
+      - key: WEBAUTHN_RP_NAME
+        value: "Lexicon Books"
+
+      - key: WEBAUTHN_RP_ID
+        sync: false
+
+      - key: WEBAUTHN_ORIGIN
+        sync: false
+
       - key: ADMIN_ALLOWED_COUNTRY
         sync: false
 

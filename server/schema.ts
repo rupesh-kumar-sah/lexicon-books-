@@ -14,6 +14,32 @@ const STATEMENTS: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS users_email_idx ON users (email)`,
 
+  `CREATE TABLE IF NOT EXISTS admin_passkeys (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    credential_id TEXT UNIQUE NOT NULL,
+    public_key BYTEA NOT NULL,
+    counter BIGINT NOT NULL DEFAULT 0,
+    transports TEXT[] NOT NULL DEFAULT '{}',
+    device_type TEXT NOT NULL DEFAULT 'singleDevice',
+    backed_up BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_used_at TIMESTAMPTZ
+  )`,
+  `CREATE INDEX IF NOT EXISTS admin_passkeys_user_id_idx ON admin_passkeys (user_id)`,
+  `CREATE INDEX IF NOT EXISTS admin_passkeys_credential_id_idx ON admin_passkeys (credential_id)`,
+
+  `CREATE TABLE IF NOT EXISTS webauthn_challenges (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    purpose TEXT NOT NULL,
+    challenge TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+  `CREATE INDEX IF NOT EXISTS webauthn_challenges_lookup_idx ON webauthn_challenges (id, purpose, user_id)`,
+  `CREATE INDEX IF NOT EXISTS webauthn_challenges_expires_at_idx ON webauthn_challenges (expires_at)`,
+
   `CREATE TABLE IF NOT EXISTS contact_messages (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

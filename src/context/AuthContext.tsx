@@ -6,6 +6,7 @@ interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   signIn: (email: string, password: string, adminData?: { latitude: number; longitude: number; device: string }) => Promise<void>;
+  signInWithToken: (token: string, user: AuthUser) => void;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   updateProfile: (data: { displayName?: string; photoURL?: string }) => Promise<void>;
@@ -62,6 +63,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(user);
   }, []);
 
+  const signInWithToken = useCallback((token: string, nextUser: AuthUser) => {
+    setToken(token);
+    setUser(nextUser);
+  }, []);
+
   const signUp = useCallback(async (email: string, password: string, displayName: string) => {
     const { token, user } = await authApi.signup({ email, password, displayName });
     setToken(token);
@@ -87,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         loading,
         signIn,
+        signInWithToken,
         signUp,
         signOut,
         updateProfile,
