@@ -8,6 +8,7 @@ const suffix = crypto.randomBytes(6).toString('hex');
 const userId = `rotation-test-${suffix}`;
 const email = `rotation-test-${suffix}@example.test`;
 const password = 'RotationTestPassword123!';
+const windowsChrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36';
 
 function cookieFrom(response: Response): string {
   return response.headers.get('set-cookie')?.split(';')[0] || '';
@@ -16,7 +17,7 @@ function cookieFrom(response: Response): string {
 async function login(body: Record<string, unknown>) {
   return fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'user-agent': windowsChrome },
     body: JSON.stringify({ email, password, ...body }),
   });
 }
@@ -27,7 +28,7 @@ try {
     [userId, email, await hashPassword(password), 'Rotation Test Admin', null, 'admin'],
   );
 
-  const loginResponse = await login({ latitude: 27.7172, longitude: 85.324, device: 'Dell Laptop Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36' });
+  const loginResponse = await login({ latitude: 27.7172, longitude: 85.324, device: windowsChrome });
   if (loginResponse.status !== 200) throw new Error(`Initial admin login failed: ${loginResponse.status}`);
   const initial = await loginResponse.json() as { token?: string };
   const firstCookie = cookieFrom(loginResponse);

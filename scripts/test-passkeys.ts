@@ -7,7 +7,7 @@ const suffix = crypto.randomBytes(6).toString('hex');
 const userId = `passkey-test-admin-${suffix}`;
 const email = `passkey-test-admin-${suffix}@example.test`;
 const password = 'PasskeyTestPassword123!';
-const dellChrome = 'Dell Laptop Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36';
+const windowsChrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36';
 
 async function json(response: Response) {
   let body: any = null;
@@ -30,11 +30,11 @@ try {
 
   const login = await json(await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password, latitude: 27.7172, longitude: 85.324, device: dellChrome }),
+    headers: { 'content-type': 'application/json', 'user-agent': windowsChrome },
+    body: JSON.stringify({ email, password, latitude: 27.7172, longitude: 85.324, device: windowsChrome }),
   }));
   assert(login.status === 200 && login.body?.token, `admin login failed: ${login.status}`);
-  const headers = { 'content-type': 'application/json', authorization: `Bearer ${login.body.token}` };
+  const headers = { 'content-type': 'application/json', 'user-agent': windowsChrome, authorization: `Bearer ${login.body.token}` };
 
   const status = await json(await fetch(`${baseUrl}/api/auth/passkeys/status`, { headers }));
   assert(status.status === 200 && status.body?.enrolled === false && status.body?.count === 0, `empty passkey status failed: ${status.status}`);
@@ -52,7 +52,7 @@ try {
   const invalidVerify = await json(await fetch(`${baseUrl}/api/auth/passkeys/login/verify`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ email, challengeId: 'expired', response: { id: 'missing' }, latitude: 27.7172, longitude: 85.324, device: dellChrome }),
+    body: JSON.stringify({ email, challengeId: 'expired', response: { id: 'missing' }, latitude: 27.7172, longitude: 85.324, device: windowsChrome }),
   }));
   assert(invalidVerify.status === 401, `invalid passkey verification was not rejected: ${invalidVerify.status}`);
 

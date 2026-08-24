@@ -10,13 +10,34 @@ export type AdminClientSignals = {
   model?: string;
 };
 
-export function isDellWindowsChromeClient({ userAgent, platform = '', model = '' }: AdminClientSignals): boolean {
+export type AdminClientEligibility = {
+  windows: boolean;
+  chrome: boolean;
+  manufacturerHintPresent: boolean;
+  eligible: boolean;
+};
+
+/**
+ * Desktop Chromium does not provide a trustworthy Dell manufacturer identifier in
+ * standard User-Agent Client Hints. Route access therefore uses only verifiable
+ * Windows + Chrome signals. The real device/user proof remains the platform
+ * WebAuthn credential, verified server-side at sign-in.
+ */
+export function assessAdminClient({ userAgent, platform = '', model = '' }: AdminClientSignals): AdminClientEligibility {
   const ua = userAgent.toLowerCase();
-  const fingerprint = `${ua} ${platform} ${model}`.toLowerCase();
-  const isWindows = /windows nt|win32/.test(ua) || /windows/.test(platform.toLowerCase());
-  const isChrome = /(?:chrome|crios)\//.test(ua) && !/(?:edg|edge|opr|opera|firefox|fxios)\//.test(ua);
-  const isDell = /\bdell(?:\s+inc\.?)?\b/.test(fingerprint);
-  return isWindows && isChrome && isDell;
+  const windows = /windows nt|win32/.test(ua) || /windows/.test(platform.toLowerCase());
+  const chrome = /(?:chrome|crios)\//.test(ua) && !/(?:edg|edge|opr|opera|firefox|fxios)\//.test(ua);
+  const manufacturerHintPresent = /\bdell(?:\s+inc\.?)?\b/.test(`${ua} ${model}`.toLowerCase());
+  return {
+    windows,
+    chrome,
+    manufacturerHintPresent,
+    eligible: windows && chrome,
+  };
+}
+
+export function isWindowsChromeClient(signals: AdminClientSignals): boolean {
+  return assessAdminClient(signals).eligible;
 }
 
 export async function currentAdminClientIsEligible(): Promise<boolean> {
@@ -30,8 +51,8 @@ export async function currentAdminClientIsEligible(): Promise<boolean> {
       platform = hints.platform || platform;
       model = hints.model || model;
     } catch {
-      // Use low-entropy browser hints and the User-Agent as the conservative fallback.
+      // Low-entropy hints and the standard User-Agent remain the conservative fallback.
     }
   }
-  return isDellWindowsChromeClient({ userAgent: navigator.userAgent, platform, model });
+  return isWindowsChromeClient({ userAgent: navigator.userAgent, platform, model });
 }

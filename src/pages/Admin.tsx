@@ -1817,7 +1817,7 @@ async function collectAdminLoginSignals() {
     throw new Error('Geolocation is not supported by this browser. Please use Chrome over HTTPS.');
   }
 
-  let device = `Dell Laptop ${navigator.userAgent}`;
+  let device = navigator.userAgent;
   const userAgentData = (navigator as Navigator & {
     userAgentData?: {
       platform?: string;
@@ -1924,11 +1924,20 @@ function AdminLoginForm() {
   const [resetMode, setResetMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [faceLockLoading, setFaceLockLoading] = useState(false);
+  const [firewallTestMode, setFirewallTestMode] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setResetMessage(null);
+    if (email.trim().length > 50) {
+      setError('Email addresses are limited to 50 characters.');
+      return;
+    }
+    if (!resetMode && password.length > 32) {
+      setError('Passwords are limited to 32 characters.');
+      return;
+    }
     setLoading(true);
     try {
       if (resetMode) {
@@ -1971,8 +1980,8 @@ function AdminLoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl">
+    <div className="relative min-h-screen overflow-x-hidden bg-slate-900 p-4 flex items-center justify-center">
+      <div className="relative z-0 w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl">
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-600">
             <ShieldCheck className="w-8 h-8" />
@@ -1980,20 +1989,22 @@ function AdminLoginForm() {
         </div>
         <h2 className="text-2xl font-bold text-center text-slate-900 mb-2">Admin Portal</h2>
         <p className="text-sm text-center text-slate-500 mb-8">
-          Secure login requires location and a Dell laptop running Chrome.
+          Secure login requires location, Windows Chrome, and your enrolled Windows Hello passkey.
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           {resetMode ? (
             <>
-              <p className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">Request a one-time reset code for the admin email. Admin access still requires Dell laptop + Chrome verification and location after the password is changed.</p>
+              <p className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">Request a one-time reset code for the admin email. Admin access still requires Windows Chrome, location verification, and the enrolled Windows Hello passkey after the password is changed.</p>
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Admin email</label>
                 <input
                   required
                   type="email"
                   value={email}
+                  maxLength={50}
+                  autoComplete="email"
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
+                  className="w-full min-w-0 mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
                 />
               </div>
               {resetMessage && <div className="bg-emerald-50 text-emerald-700 text-sm p-3 rounded-xl border border-emerald-100">{resetMessage}</div>}
@@ -2016,8 +2027,10 @@ function AdminLoginForm() {
                   required
                   type="email"
                   value={email}
+                  maxLength={50}
+                  autoComplete="email"
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
+                  className="w-full min-w-0 mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
                 />
               </div>
               <div>
@@ -2026,15 +2039,18 @@ function AdminLoginForm() {
                   required
                   type="password"
                   value={password}
+                  maxLength={32}
+                  autoComplete="current-password"
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
+                  className="w-full min-w-0 mt-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-rose-500"
                 />
               </div>
+              <p className="-mt-2 text-xs text-slate-400">Maximum 32 characters.</p>
               <div className="text-right">
                 <button type="button" onClick={() => { setResetMode(true); setResetMessage(null); setError(null); }} className="text-sm font-bold text-rose-600 hover:underline">Forgot admin password?</button>
               </div>
               {error && (
-                <div className="bg-rose-50 text-rose-600 text-sm p-3 rounded-xl border border-rose-100">
+                <div role="alert" className="break-words bg-rose-50 text-rose-600 text-sm p-3 rounded-xl border border-rose-100">
                   {error}
                 </div>
               )}
@@ -2056,10 +2072,39 @@ function AdminLoginForm() {
                 Use Face Lock / Passkey
               </button>
               <p className="text-center text-xs text-slate-400">Uses Windows Hello or your enrolled platform passkey.</p>
+              <button
+                type="button"
+                onClick={() => setFirewallTestMode(true)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+              >
+                Test Firewall Overlay
+              </button>
             </>
           )}
         </form>
       </div>
+      {(firewallTestMode || loading || faceLockLoading) && (
+        <div className="absolute inset-0 z-[1000] flex items-center justify-center bg-slate-950/80 p-6 backdrop-blur-md" role="alert" aria-live="assertive">
+          <section className="w-full max-w-sm rounded-2xl border border-rose-500/40 bg-slate-950 p-6 text-center shadow-2xl shadow-black/50">
+            <ShieldAlert className="mx-auto h-10 w-10 text-rose-400" />
+            <h3 className="mt-4 text-lg font-bold text-white">Security verification active</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-300">
+              {firewallTestMode && !loading && !faceLockLoading
+                ? 'Firewall overlay test mode is active. This visual layer does not replace server-side authorization.'
+                : 'Admin credentials and device verification are being processed securely.'}
+            </p>
+            {firewallTestMode && !loading && !faceLockLoading && (
+              <button
+                type="button"
+                onClick={() => setFirewallTestMode(false)}
+                className="mt-5 rounded-xl border border-slate-600 px-4 py-2 text-sm font-bold text-white hover:border-rose-400 hover:bg-rose-500/10"
+              >
+                Dismiss test
+              </button>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   );
 }

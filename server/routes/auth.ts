@@ -248,9 +248,15 @@ router.post('/signup', async (req, res) => {
 
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body || {};
+    const rawEmail = req.body?.email;
+    const rawPassword = req.body?.password;
+    const email = typeof rawEmail === 'string' ? rawEmail.trim() : '';
+    const password = typeof rawPassword === 'string' ? rawPassword : '';
     if (!email || !password) {
       return res.status(400).json({ error: 'email and password are required' });
+    }
+    if (email.length > 50 || password.length > 32) {
+      return res.status(400).json({ error: 'Invalid email or password' });
     }
     const result = await query<any>(
       'SELECT id, email, password_hash, display_name, photo_url, role, created_at, failed_login_attempts, locked_until FROM users WHERE email = $1',
@@ -298,6 +304,17 @@ router.post('/login', async (req, res) => {
     if (userRole === 'admin') {
       const security = await checkAdminLoginSecurity(req, req.body || {});
       if (security.ok === false) return res.status(security.status).json(security.body);
+
+      const passkeys = await query<{ count: string }>(
+        'SELECT COUNT(*)::text AS count FROM admin_passkeys WHERE user_id = $1',
+        [u.id],
+      );
+      if (Number(passkeys.rows[0]?.count || 0) > 0) {
+        return res.status(403).json({
+          error: 'This administrator has an enrolled Windows Hello passkey. Use Face Lock / Passkey to sign in.',
+          requiresAdminVerification: true,
+        });
+      }
     }
 
     const { token, refreshToken } = await createSessionPair(u.id);
