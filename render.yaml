@@ -79,6 +79,12 @@ services:
       - key: GOOGLE_SHEETS_USER_RANGE
         sync: false
 
+      - key: GOOGLE_SHEETS_MESSAGE_RANGE
+        sync: false
+
+      - key: GOOGLE_SHEETS_ANALYTICS_RANGE
+        sync: false
+
       - key: PASSWORD_RESET_TTL_MINUTES
         value: "30"
 

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { adminQuery } from '../db';
 import { requireAdmin } from '../auth';
 import { getCache, setCache, clearCache } from '../cache';
+import { queueFullAppSnapshot } from '../integrations/google';
 
 const router = Router();
 
@@ -198,6 +199,7 @@ router.patch('/orders/:id/status', requireAdmin, async (req, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
     await clearCache('admin:stats');
+    queueFullAppSnapshot();
     res.json({ ok: true, order: result.rows[0] });
   } catch (e: any) {
     console.error('admin update order status error', e);
@@ -210,6 +212,7 @@ router.delete('/orders/:id', requireAdmin, async (req, res) => {
     const result = await adminQuery('DELETE FROM orders WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
     await clearCache('admin:stats');
+    queueFullAppSnapshot();
     res.json({ ok: true });
   } catch (e: any) {
     console.error('admin delete order error', e);
@@ -284,6 +287,7 @@ router.patch('/users/:id', requireAdmin, async (req: any, res) => {
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     await clearCache('admin:stats');
+    queueFullAppSnapshot();
     res.json({ ok: true, user: result.rows[0] });
   } catch (e: any) {
     console.error('admin update user role error', e);
@@ -302,6 +306,7 @@ router.delete('/users/:id', requireAdmin, async (req: any, res) => {
     const result = await adminQuery('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     await clearCache('admin:stats');
+    queueFullAppSnapshot();
     res.json({ ok: true });
   } catch (e: any) {
     console.error('admin delete user error', e);
@@ -352,6 +357,7 @@ router.patch('/messages/:id', requireAdmin, async (req, res) => {
   try {
     const result = await adminQuery('UPDATE contact_messages SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, status', [status, req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Message not found' });
+    queueFullAppSnapshot();
     res.json({ ok: true, message: result.rows[0] });
   } catch (error) {
     console.error('admin update message error', error);
@@ -363,6 +369,7 @@ router.delete('/messages/:id', requireAdmin, async (req, res) => {
   try {
     const result = await adminQuery('DELETE FROM contact_messages WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Message not found' });
+    queueFullAppSnapshot();
     res.json({ ok: true });
   } catch (error) {
     console.error('admin delete message error', error);
@@ -419,6 +426,7 @@ router.put('/settings', requireAdmin, async (req, res) => {
        WHERE id = 'default'`,
       [siteName, tagline, primaryColor, accentColor, heroImage || '', Number(shippingKtm || 100), Number(shippingOutside || 150), Number(freeShippingThreshold || 5000), footerText1 || 'Secure SSL Checkout', footerText2 || '30-Day Easy Returns', footerText3 || 'Global Shipping Available', footerLink1 || 'Privacy', footerLink2 || 'Terms', footerCompany || 'BOOKSELLNP MEDIA GROUP', privacyContent || '', termsContent || '', adminPin || '2063']
     );
+    queueFullAppSnapshot();
     res.json({ ok: true });
   } catch (e: any) {
     console.error('admin save settings error', e);

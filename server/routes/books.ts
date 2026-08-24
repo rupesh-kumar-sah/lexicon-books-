@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db';
 import { newId, requireAdmin, requireAuth } from '../auth';
 import { getCache, setCache, clearCache } from '../cache';
+import { queueFullAppSnapshot } from '../integrations/google';
 
 const router = Router();
 
@@ -178,6 +179,7 @@ router.post('/', requireAdmin, async (req, res) => {
     clearCache('books:');
     clearCache('genres');
     clearCache('admin:stats');
+    queueFullAppSnapshot();
     res.json({ book: rowToBook(result.rows[0]) });
   } catch (e: any) {
     console.error('create book error', e);
@@ -226,6 +228,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
     clearCache('books:');
     clearCache('genres');
     clearCache('admin:stats');
+    queueFullAppSnapshot();
     res.json({ book: rowToBook(result.rows[0]) });
   } catch (e: any) {
     console.error('update book error', e);
@@ -256,6 +259,7 @@ router.patch('/:id/stock', requireAdmin, async (req, res) => {
     clearCache('books:');
     clearCache('genres');
     clearCache('admin:stats');
+    queueFullAppSnapshot();
     res.json({ book: result.rows[0] });
   } catch (e: any) {
     console.error('adjust book stock error', e);
@@ -270,6 +274,7 @@ router.delete('/:id', requireAdmin, async (req, res) => {
     clearCache('books:');
     clearCache('genres');
     clearCache('admin:stats');
+    queueFullAppSnapshot();
     res.json({ ok: true });
   } catch (e: any) {
     console.error('delete book error', e);

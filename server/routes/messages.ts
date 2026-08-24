@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db';
 import { newId } from '../auth';
+import { queueFullAppSnapshot } from '../integrations/google';
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.post('/', async (req, res) => {
       `INSERT INTO contact_messages (id, name, email, subject, message) VALUES ($1, $2, $3, $4, $5)`,
       [id, name, email, subject, message],
     );
+    queueFullAppSnapshot();
     return res.status(201).json({ ok: true, id });
   } catch (error) {
     console.error('contact message create error', error);

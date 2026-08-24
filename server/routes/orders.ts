@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool, query } from '../db';
 import { newId, requireAuth } from '../auth';
-import { notifyOrderCreated } from '../integrations/google';
+import { notifyOrderCreated, queueFullAppSnapshot } from '../integrations/google';
 
 const router = Router();
 
@@ -98,6 +98,7 @@ router.post('/', requireAuth, async (req, res) => {
     );
 
     await client.query('COMMIT');
+    queueFullAppSnapshot();
     void notifyOrderCreated({
       id,
       customerEmail,
@@ -216,6 +217,7 @@ router.post('/:id/cancel', requireAuth, async (req, res) => {
     }
     await client.query(`UPDATE orders SET status = 'cancelled' WHERE id = $1`, [req.params.id]);
     await client.query('COMMIT');
+    queueFullAppSnapshot();
     res.json({ ok: true });
   } catch (e: any) {
     await client.query('ROLLBACK').catch(() => {});

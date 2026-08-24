@@ -97,6 +97,10 @@ export default function Admin() {
     setSelectedBook(b);
     setModalMode('edit');
   };
+  const openDuplicate = (b: Book) => {
+    setSelectedBook({ ...b, title: `${b.title} (Copy)`, isbn: '', stock: 0 });
+    setModalMode('add');
+  };
   const closeModal = () => setModalMode(null);
   const onSaved = () => {
     closeModal();
@@ -145,7 +149,7 @@ export default function Admin() {
 
         <div className="hidden lg:block mt-auto p-8 border-t border-slate-100 space-y-2">
 
-          <button className="w-full flex items-center space-x-3 px-4 py-3 text-sm font-bold text-slate-400 hover:text-blue-700 transition-colors">
+          <button type="button" onClick={() => setActiveTab('settings')} className="w-full flex items-center space-x-3 px-4 py-3 text-sm font-bold text-slate-400 hover:text-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
             <Settings className="w-4 h-4" />
             <span>Settings</span>
           </button>
@@ -173,8 +177,8 @@ export default function Admin() {
           )}
         </header>
 
-        {activeTab === 'dashboard' && <DashboardView />}
-        {activeTab === 'inventory' && <InventoryView key={refreshKey} onEdit={openEdit} />}
+        {activeTab === 'dashboard' && <DashboardView onNavigate={setActiveTab} />}
+        {activeTab === 'inventory' && <InventoryView key={refreshKey} onAdd={openAdd} onEdit={openEdit} onDuplicate={openDuplicate} />}
         {activeTab === 'orders' && <OrdersView />}
         {activeTab === 'users' && <UsersView />}
         {activeTab === 'messages' && <MessagesView />}
@@ -225,7 +229,7 @@ const ORDER_STATUS_META: Record<OrderStatus, { label: string; icon: any; tone: s
 };
 
 
-function DashboardView() {
+function DashboardView({ onNavigate }: { onNavigate: (tab: Tab) => void }) {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -262,10 +266,10 @@ function DashboardView() {
   }
 
   const cards = [
-    { label: 'Total Revenue', value: `Rs.${stats.totalRevenue.toFixed(2)}`, helper: 'Excl. cancelled', icon: DollarSign, accent: 'emerald' },
-    { label: 'Orders', value: stats.totalOrders, helper: 'All time', icon: ShoppingBag, accent: 'blue' },
-    { label: 'Customers', value: stats.totalUsers, helper: 'Registered readers', icon: UsersIcon, accent: 'violet' },
-    { label: 'Catalog', value: stats.totalBooks, helper: 'Titles in stock', icon: BookIcon, accent: 'amber' },
+    { label: 'Total Revenue', value: `Rs.${stats.totalRevenue.toFixed(2)}`, helper: 'Review all orders', icon: DollarSign, accent: 'emerald', tab: 'orders' as Tab },
+    { label: 'Orders', value: stats.totalOrders, helper: 'Open order management', icon: ShoppingBag, accent: 'blue', tab: 'orders' as Tab },
+    { label: 'Customers', value: stats.totalUsers, helper: 'Open user management', icon: UsersIcon, accent: 'violet', tab: 'users' as Tab },
+    { label: 'Catalog', value: stats.totalBooks, helper: 'Open inventory controls', icon: BookIcon, accent: 'amber', tab: 'inventory' as Tab },
   ];
 
   const accentMap: Record<string, string> = {
@@ -279,7 +283,7 @@ function DashboardView() {
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {cards.map((c) => (
-          <div key={c.label} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-shadow">
+          <button type="button" key={c.label} onClick={() => onNavigate(c.tab)} className="w-full text-left bg-white rounded-2xl border border-slate-200 p-6 shadow-sm hover:shadow-md hover:border-blue-300 transition-shadow focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
             <div className="flex items-start justify-between mb-4">
               <div className={cn('p-2.5 rounded-xl', accentMap[c.accent])}>
                 <c.icon className="w-5 h-5" />
@@ -288,7 +292,7 @@ function DashboardView() {
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{c.label}</p>
             <p className="text-3xl font-bold text-slate-900 tracking-tight">{c.value}</p>
             <p className="text-xs text-slate-400 mt-2">{c.helper}</p>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -297,12 +301,13 @@ function DashboardView() {
           <div className="p-2.5 bg-amber-100 text-amber-700 rounded-xl">
             <AlertTriangle className="w-5 h-5" />
           </div>
-          <div>
+          <div className="flex-1">
             <p className="font-bold text-amber-900">Low stock alert</p>
             <p className="text-sm text-amber-800">
               {stats.lowStockCount} {stats.lowStockCount === 1 ? 'title has' : 'titles have'} 5 or fewer copies remaining.
             </p>
           </div>
+          <button type="button" onClick={() => onNavigate('inventory')} className="min-h-10 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-700 focus:ring-offset-2">Open Inventory</button>
         </div>
       )}
 
@@ -1022,12 +1027,13 @@ function Field({
   );
 }
 
-function InventoryView({ onEdit }: { key?: React.Key | string | number; onEdit: (book: Book) => void }) {
+function InventoryView({ onAdd, onEdit, onDuplicate }: { key?: React.Key | string | number; onAdd: () => void; onEdit: (book: Book) => void; onDuplicate: (book: Book) => void }) {
   const toast = useToast();
   const [books, setBooks] = useState<Book[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [adjustingBookId, setAdjustingBookId] = useState<string | null>(null);
+  const [deletingBookId, setDeletingBookId] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Book; direction: 'asc' | 'desc' }>({
     key: 'title',
     direction: 'asc',
@@ -1045,13 +1051,16 @@ function InventoryView({ onEdit }: { key?: React.Key | string | number; onEdit: 
   useEffect(reload, []);
 
   const handleDelete = async (id: string, title: string) => {
-    if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
+    setDeletingBookId(id);
     try {
       await bookApi.remove(id);
+      setBooks((current) => current.filter((book) => book.id !== id));
       toast.success(`Removed "${title}"`);
-      reload();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete book.');
+    } finally {
+      setDeletingBookId(null);
     }
   };
 
@@ -1122,9 +1131,28 @@ function InventoryView({ onEdit }: { key?: React.Key | string | number; onEdit: 
           />
           <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
         </div>
-        <p className="text-xs text-slate-400 font-medium">
-          {filtered.length} of {books.length} titles
-        </p>
+        <div className="flex w-full sm:w-auto items-center justify-between gap-3">
+          <p className="text-sm text-slate-600 font-medium">
+            {filtered.length} of {books.length} titles
+          </p>
+          <button
+            type="button"
+            onClick={reload}
+            disabled={loading}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-60"
+          >
+            <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={onAdd}
+            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add book
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -1209,25 +1237,32 @@ function InventoryView({ onEdit }: { key?: React.Key | string | number; onEdit: 
                       )}
                     </div>
                   </td>
-                  <td className="px-8 py-6">
-                    <div className="relative group inline-block">
-                      <button className="p-2 text-slate-300 hover:text-blue-700 transition-colors">
-                        <MoreVertical className="w-4 h-4" />
+                  <td className="px-4 sm:px-8 py-6">
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onEdit(book)}
+                        disabled={deletingBookId === book.id}
+                        className="min-h-9 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:opacity-60"
+                      >
+                        Edit
                       </button>
-                      <div className="absolute right-0 mt-2 w-32 bg-white rounded-xl border border-slate-200 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-all z-30 overflow-hidden text-[10px] font-bold uppercase tracking-widest">
-                        <button
-                          onClick={() => onEdit(book)}
-                          className="w-full text-left px-4 py-3 hover:bg-slate-50 hover:text-blue-600 transition-colors border-b border-slate-100"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(book.id, book.title)}
-                          className="w-full text-left px-4 py-3 hover:bg-rose-50 hover:text-rose-600 transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onDuplicate(book)}
+                        disabled={deletingBookId === book.id}
+                        className="min-h-9 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-600 focus:ring-offset-2 disabled:opacity-60"
+                      >
+                        Duplicate
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(book.id, book.title)}
+                        disabled={deletingBookId === book.id}
+                        className="min-h-9 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-700 focus:ring-offset-2 disabled:opacity-60"
+                      >
+                        {deletingBookId === book.id ? 'Deleting…' : 'Delete'}
+                      </button>
                     </div>
                   </td>
                 </tr>

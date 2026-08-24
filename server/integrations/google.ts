@@ -36,6 +36,14 @@ function sheetUserRange() {
   return process.env.GOOGLE_SHEETS_USER_RANGE || 'Users!A:E';
 }
 
+function sheetMessageRange() {
+  return process.env.GOOGLE_SHEETS_MESSAGE_RANGE || 'Messages!A:G';
+}
+
+function sheetAnalyticsRange() {
+  return process.env.GOOGLE_SHEETS_ANALYTICS_RANGE || 'Analytics!A:B';
+}
+
 function parseServiceAccount() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
   if (!raw) return null;
@@ -181,11 +189,27 @@ export async function notifyOrderCreated(order: IntegrationOrder): Promise<void>
 async function replaceSheetValues(sheets: sheets_v4.Sheets, range: string, values: unknown[][]) {
   const spreadsheetId = sheetId();
   if (!spreadsheetId) return;
+  await sheets.spreadsheets.values.clear({ spreadsheetId, range });
   await sheets.spreadsheets.values.update({
     spreadsheetId,
     range,
     valueInputOption: 'RAW',
     requestBody: { values },
+  });
+}
+
+let sheetSyncQueued = false;
+
+/**
+ * Coalesce mutation-triggered snapshots during a short event-loop window. This
+ * keeps Sheets server-side and avoids one expensive snapshot per rapid click.
+ */
+export function queueFullAppSnapshot(): void {
+  if (sheetSyncQueued) return;
+  sheetSyncQueued = true;
+  queueMicrotask(() => {
+    sheetSyncQueued = false;
+    void syncFullAppSnapshot();
   });
 }
 
@@ -199,20 +223,27 @@ export async function syncFullAppSnapshot(): Promise<void> {
     const spreadsheetId = sheetId();
     if (!auth || !spreadsheetId) return;
     const { query } = await import('../db');
-    const [books, users, orders] = await Promise.all([
+    const systemAdminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+    const [books, users, orders, messages] = await Promise.all([
       query<any>('SELECT id, title, author, price, stock, genre, year, featured FROM books ORDER BY created_at DESC'),
-      query<any>('SELECT id, email, display_name, role, created_at FROM users ORDER BY created_at DESC'),
+      query<any>('SELECT id, email, display_name, role, created_at FROM users WHERE LOWER(email) <> $1 ORDER BY created_at DESC', [systemAdminEmail || '__no_system_admin__']),
       query<any>(`SELECT id, customer_email, customer_name, customer_phone, shipping_address, location_coords, subtotal, shipping, total, status, created_at, items_json FROM orders ORDER BY created_at DESC`),
+      query<any>('SELECT id, name, email, subject, message, status, created_at FROM contact_messages ORDER BY created_at DESC'),
     ]);
     const orderRows = orders.rows.map((row) => {
       const coords = row.location_coords || {};
       return [row.id, row.customer_email, row.customer_name, row.customer_phone || '', row.shipping_address, coords.lat ?? coords.latitude ?? '', coords.lng ?? coords.longitude ?? '', row.subtotal, row.shipping, row.total, row.status, row.created_at, Array.isArray(row.items_json) ? row.items_json.reduce((sum: number, item: any) => sum + Number(item.quantity || 0), 0) : 0];
     });
+    const orderTotal = orders.rows.reduce((sum, row) => sum + Number(row.total || 0), 0);
+    const activeOrderCount = orders.rows.filter((row) => !['cancelled', 'delivered'].includes(String(row.status))).length;
+    const totalStock = books.rows.reduce((sum, row) => sum + Number(row.stock || 0), 0);
     const sheets = google.sheets({ version: 'v4', auth });
     await Promise.all([
       replaceSheetValues(sheets, sheetBookRange(), [['id', 'title', 'author', 'price', 'stock', 'genre', 'year', 'featured'], ...books.rows.map((row) => [row.id, row.title, row.author, row.price, row.stock, row.genre, row.year, row.featured])]),
       replaceSheetValues(sheets, sheetUserRange(), [['id', 'email', 'display_name', 'role', 'created_at'], ...users.rows.map((row) => [row.id, row.email, row.display_name, row.role, row.created_at])]),
       replaceSheetValues(sheets, sheetOrderRange(), [['id', 'customer_email', 'customer_name', 'customer_phone', 'shipping_address', 'latitude', 'longitude', 'subtotal', 'shipping', 'total', 'status', 'created_at', 'item_quantity'], ...orderRows]),
+      replaceSheetValues(sheets, sheetMessageRange(), [['id', 'name', 'email', 'subject', 'message', 'status', 'created_at'], ...messages.rows.map((row) => [row.id, row.name, row.email, row.subject || '', row.message, row.status, row.created_at])]),
+      replaceSheetValues(sheets, sheetAnalyticsRange(), [['metric', 'value'], ['catalog_titles', books.rows.length], ['catalog_stock_units', totalStock], ['customer_accounts', users.rows.length], ['orders_total', orders.rows.length], ['orders_active', activeOrderCount], ['recorded_order_total', orderTotal], ['contact_messages', messages.rows.length], ['snapshot_generated_at', new Date().toISOString()]]),
     ]);
     console.info('[Google] Full app snapshot synchronized to private Sheets tabs.');
   } catch (error) {

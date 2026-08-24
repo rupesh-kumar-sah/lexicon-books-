@@ -15,7 +15,7 @@ import {
   setRefreshCookie,
   clearRefreshCookie,
 } from '../auth';
-import { sendPasswordResetCodeEmail } from '../integrations/google';
+import { queueFullAppSnapshot, sendPasswordResetCodeEmail } from '../integrations/google';
 import { checkAdminLoginSecurity } from '../adminSecurity';
 
 const router = Router();
@@ -117,6 +117,7 @@ router.get('/google/callback', async (req, res) => {
         [id, email, profile.data.name || email.split('@')[0], profile.data.picture || null],
       );
       user = { id, email, display_name: profile.data.name || email.split('@')[0], photo_url: profile.data.picture || null, role: 'user', created_at: new Date().toISOString() };
+      queueFullAppSnapshot();
     }
     const { token, refreshToken } = await createSessionPair(user.id);
     setRefreshCookie(res, refreshToken);
@@ -235,6 +236,7 @@ router.post('/signup', async (req, res) => {
     );
 
     const { token, refreshToken } = await createSessionPair(id);
+    queueFullAppSnapshot();
     setRefreshCookie(res, refreshToken);
     res.json({
       token,
