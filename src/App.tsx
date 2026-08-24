@@ -1,7 +1,8 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import { Loader2 } from 'lucide-react';
+import { currentAdminClientIsEligible } from './lib/adminRouteGuard';
 
 // Lazy load pages for better performance
 const Home = lazy(() => import('./pages/Home'));
@@ -27,6 +28,33 @@ function PageLoader() {
   );
 }
 
+function AdminRouteNotFound() {
+  return (
+    <main className="min-h-screen bg-slate-950 px-6 text-slate-100 flex items-center justify-center">
+      <section className="max-w-md text-center">
+        <p className="text-sm font-semibold tracking-[0.32em] text-slate-500">404</p>
+        <h1 className="mt-3 text-3xl font-bold">Page not found</h1>
+        <p className="mt-3 text-sm leading-6 text-slate-400">The requested page is unavailable.</p>
+      </section>
+    </main>
+  );
+}
+
+function ProtectedAdminRoute() {
+  const [eligible, setEligible] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void currentAdminClientIsEligible().then((result) => {
+      if (active) setEligible(result);
+    });
+    return () => { active = false; };
+  }, []);
+
+  if (eligible === null) return <PageLoader />;
+  return eligible ? <Admin /> : <AdminRouteNotFound />;
+}
+
 export default function App() {
   return (
     <Router>
@@ -34,7 +62,7 @@ export default function App() {
         <Routes>
           {/* Isolated Admin Route */}
           {import.meta.env.VITE_ADMIN_PATH && (
-            <Route path={`${import.meta.env.VITE_ADMIN_PATH}/*`} element={<Admin />} />
+            <Route path={`${import.meta.env.VITE_ADMIN_PATH}/*`} element={<ProtectedAdminRoute />} />
           )}
 
           {/* Public App with Layout */}
