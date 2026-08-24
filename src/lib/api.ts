@@ -1,4 +1,4 @@
-import type { Book, Review, AuthUser, Order, AdminOrder, AdminStats, GenreInfo, OrderStatus, AdminUser, SiteSettings } from '../types';
+import type { Book, Review, AuthUser, Order, AdminOrder, AdminStats, GenreInfo, OrderStatus, AdminUser, SiteSettings, ContactMessage } from '../types';
 
 const TOKEN_KEY = 'booksellnp_token';
 const CLIENT_CACHE: Record<string, { data: any; timestamp: number }> = {};
@@ -100,6 +100,12 @@ export const authApi = {
     }),
 };
 
+// Customer messages
+export const messageApi = {
+  send: (input: { name: string; email: string; subject: string; message: string }) =>
+    request<{ ok: true; id: string }>('/api/messages', { method: 'POST', body: JSON.stringify(input) }),
+};
+
 // Books
 export type BookSort = 'newest' | 'oldest' | 'price-asc' | 'price-desc' | 'title' | 'rating' | 'popular';
 
@@ -197,6 +203,19 @@ export const adminApi = {
     }),
   deleteUser: (id: string) =>
     request<{ ok: true }>(`/api/admin/users/${id}`, { method: 'DELETE' }),
+
+  // Contact messages
+  messages: (params: { status?: ContactMessage['status'] | 'all'; search?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.status && params.status !== 'all') q.set('status', params.status);
+    if (params.search) q.set('search', params.search);
+    const qs = q.toString();
+    return request<{ messages: ContactMessage[] }>(`/api/admin/messages${qs ? '?' + qs : ''}`);
+  },
+  updateMessageStatus: (id: string, status: ContactMessage['status']) =>
+    request<{ ok: true }>(`/api/admin/messages/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  deleteMessage: (id: string) =>
+    request<{ ok: true }>(`/api/admin/messages/${id}`, { method: 'DELETE' }),
 
   // Site settings / theme
   getSettings: () => request<{ settings: SiteSettings | null }>(`/api/admin/settings`),

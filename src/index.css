@@ -24,3 +24,46 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Responsive foundation: keep the app fluid across phones, tablets, and laptops. */
+html, body, #root {
+  min-height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-width: 320px;
+  overflow-x: hidden;
+}
+
+button, input, select, textarea {
+  max-width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .admin-main-content {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 639px) {
+  .admin-main-content {
+    padding: 1rem;
+  }
+
+  .admin-main-content .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .admin-main-content h1 {
+    font-size: 1.75rem;
+    line-height: 1.15;
+  }
+
+  .admin-main-content .grid {
+    min-width: 0;
+  }
+}

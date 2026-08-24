@@ -26,6 +26,7 @@ import {
   Save,
   ShieldCheck,
   Mail,
+  Archive,
   Phone,
   MapPin,
   RefreshCw,
@@ -55,13 +56,13 @@ import {
 import { adminApi, authApi, bookApi } from '../lib/api';
 import { cn } from '../lib/utils';
 import { GENRES } from '../constants';
-import { AdminOrder, AdminStats, AdminUser, Book, OrderStatus, SiteSettings } from '../types';
+import { AdminOrder, AdminStats, AdminUser, Book, OrderStatus, SiteSettings, ContactMessage } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useSiteSettings } from '../context/SiteSettingsContext';
 import { useNavigate, Link } from 'react-router-dom';
 
-type Tab = 'dashboard' | 'inventory' | 'orders' | 'users' | 'settings';
+type Tab = 'dashboard' | 'inventory' | 'orders' | 'users' | 'messages' | 'settings';
 
 export default function Admin() {
   const { isAdmin, loading: authLoading } = useAuth();
@@ -104,28 +105,30 @@ export default function Admin() {
     dashboard: 'Analytics',
     inventory: 'Inventory',
     orders: 'Orders',
-    users: 'Users',
-    settings: 'Site Settings',
+      users: 'Users',
+      messages: 'Messages',
+      settings: 'Site Settings',
   };
 
   return (
-    <div className="flex h-full bg-slate-50">
-      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-y-auto">
-        <div className="p-8">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50">
+      <aside className="w-full lg:w-64 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col shrink-0 overflow-x-auto lg:overflow-y-auto">
+        <div className="p-4 sm:p-6 lg:p-8">
           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-6">Management</p>
-          <nav className="space-y-2">
+          <nav className="flex lg:block gap-2 overflow-x-auto scrollbar-hide pb-1 lg:pb-0">
             {[
               { id: 'dashboard' as Tab, icon: LayoutDashboard, label: 'Analytics' },
               { id: 'inventory' as Tab, icon: BookIcon, label: 'Inventory' },
               { id: 'orders' as Tab, icon: ShoppingBag, label: 'Orders' },
               { id: 'users' as Tab, icon: UsersIcon, label: 'Users' },
+              { id: 'messages' as Tab, icon: Mail, label: 'Messages' },
               { id: 'settings' as Tab, icon: Settings, label: 'Site Settings' },
             ].map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
                 className={cn(
-                  'w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-bold transition-all',
+                  'shrink-0 lg:w-full flex items-center space-x-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl text-sm font-bold transition-all',
                   activeTab === item.id
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'
                     : 'text-slate-500 hover:bg-slate-100 hover:text-blue-700'
@@ -138,7 +141,7 @@ export default function Admin() {
           </nav>
         </div>
 
-        <div className="mt-auto p-8 border-t border-slate-100 space-y-2">
+        <div className="hidden lg:block mt-auto p-8 border-t border-slate-100 space-y-2">
 
           <button className="w-full flex items-center space-x-3 px-4 py-3 text-sm font-bold text-slate-400 hover:text-blue-700 transition-colors">
             <Settings className="w-4 h-4" />
@@ -147,10 +150,10 @@ export default function Admin() {
         </div>
       </aside>
 
-      <main className="flex-1 p-12 overflow-y-auto relative">
-        <header className="flex justify-between items-center mb-12">
+      <main className="admin-main-content flex-1 min-w-0 p-4 sm:p-6 lg:p-12 overflow-y-auto relative">
+        <header className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center mb-8 lg:mb-12">
           <div>
-            <h1 className="font-sans text-4xl font-bold mb-2 text-slate-900 tracking-tight">
+            <h1 className="font-sans text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 text-slate-900 tracking-tight">
               {titles[activeTab]}
             </h1>
             <p className="text-slate-400 text-sm font-medium">
@@ -160,7 +163,7 @@ export default function Admin() {
           {activeTab === 'inventory' && (
             <button
               onClick={openAdd}
-              className="flex items-center space-x-2 bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-sm hover:bg-blue-600 transition-all shadow-lg active:scale-95"
+              className="w-full sm:w-auto flex items-center justify-center space-x-2 bg-slate-900 text-white px-5 sm:px-6 py-3 rounded-xl font-bold text-sm hover:bg-blue-600 transition-all shadow-lg active:scale-95"
             >
               <Plus className="w-4 h-4" />
               <span>Add Book</span>
@@ -172,6 +175,7 @@ export default function Admin() {
         {activeTab === 'inventory' && <InventoryView key={refreshKey} onEdit={openEdit} />}
         {activeTab === 'orders' && <OrdersView />}
         {activeTab === 'users' && <UsersView />}
+        {activeTab === 'messages' && <MessagesView />}
         {activeTab === 'settings' && <ThemesView />}
 
         <AnimatePresence>
@@ -1091,7 +1095,7 @@ function InventoryView({ onEdit }: { key?: React.Key | string | number; onEdit: 
 
   return (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div className="p-4 sm:p-8 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
         <div className="relative w-full sm:w-96">
           <input
             type="text"
@@ -1435,7 +1439,7 @@ function ThemesView() {
     <div className="grid lg:grid-cols-[1fr,420px] gap-6">
       {/* Editor */}
       <div className="space-y-6">
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-6">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-8 shadow-sm space-y-6">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">Branding</p>
             <div className="grid md:grid-cols-2 gap-4">
@@ -1628,6 +1632,146 @@ function ColorField({
           className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono uppercase focus:ring-2 focus:ring-blue-500/30 outline-none"
         />
       </div>
+    </div>
+  );
+}
+
+function MessagesView() {
+  const toast = useToast();
+  const [messages, setMessages] = useState<ContactMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [status, setStatus] = useState<ContactMessage['status'] | 'all'>('all');
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput.trim()), 250);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const reload = () => {
+    setLoading(true);
+    adminApi.messages({ status, search: search || undefined })
+      .then(({ messages: rows }) => setMessages(rows))
+      .catch((error) => toast.error(error.message || 'Failed to load messages'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(reload, [status, search]);
+
+  const changeStatus = async (message: ContactMessage, nextStatus: ContactMessage['status']) => {
+    setBusy(message.id);
+    try {
+      await adminApi.updateMessageStatus(message.id, nextStatus);
+      if (status !== 'all' && status !== nextStatus) {
+        setMessages((previous) => previous.filter((item) => item.id !== message.id));
+      } else {
+        setMessages((previous) => previous.map((item) => item.id === message.id ? { ...item, status: nextStatus, updatedAt: Date.now() } : item));
+      }
+      toast.success(nextStatus === 'archived' ? 'Message archived' : `Message marked ${nextStatus}`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update message');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const remove = async (message: ContactMessage) => {
+    if (!confirm(`Delete the message from ${message.email}? This cannot be undone.`)) return;
+    setBusy(message.id);
+    try {
+      await adminApi.deleteMessage(message.id);
+      setMessages((previous) => previous.filter((item) => item.id !== message.id));
+      toast.success('Message deleted');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete message');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const unreadCount = messages.filter((message) => message.status === 'unread').length;
+  const statusClasses: Record<ContactMessage['status'], string> = {
+    unread: 'bg-blue-50 text-blue-700 border-blue-200',
+    read: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    archived: 'bg-slate-100 text-slate-500 border-slate-200',
+  };
+
+  return (
+    <div className="space-y-5 sm:space-y-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatPill label="Visible" value={messages.length} icon={Mail} tone="blue" />
+        <StatPill label="Unread" value={unreadCount} icon={Mail} tone="violet" />
+        <StatPill label="Read" value={messages.filter((message) => message.status === 'read').length} icon={CheckCircle2} tone="emerald" />
+        <StatPill label="Archived" value={messages.filter((message) => message.status === 'archived').length} icon={Archive} tone="violet" />
+      </div>
+
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-6 border-b border-slate-100 space-y-4">
+          <div className="relative">
+            <input
+              type="search"
+              placeholder="Search name, email, subject, or message..."
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500/30"
+            />
+            <Search className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+          </div>
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide" role="tablist" aria-label="Message status">
+            {(['all', 'unread', 'read', 'archived'] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setStatus(option)}
+                className={cn('shrink-0 px-3.5 py-2 rounded-lg text-xs font-bold capitalize transition-colors', status === option ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500 hover:text-slate-900')}
+                role="tab"
+                aria-selected={status === option}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="p-12 text-center text-slate-400 flex flex-col items-center gap-3"><Loader2 className="w-6 h-6 animate-spin" />Loading messages...</div>
+        ) : messages.length === 0 ? (
+          <div className="p-12 sm:p-16 text-center text-slate-400 font-medium italic">No messages match this filter.</div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {messages.map((message) => (
+              <article key={message.id} className={cn('p-4 sm:p-6 transition-colors', message.status === 'unread' ? 'bg-blue-50/30' : 'hover:bg-slate-50/60')}>
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', message.status === 'unread' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500')}>
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-slate-900 truncate">{message.subject || 'No subject'}</h3>
+                          <span className={cn('px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wider', statusClasses[message.status])}>{message.status}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1 truncate">{message.name} · <a href={`mailto:${message.email}`} className="text-blue-700 hover:underline">{message.email}</a></p>
+                      </div>
+                      <time className="text-[11px] text-slate-400 shrink-0" dateTime={new Date(message.createdAt).toISOString()}>{new Date(message.createdAt).toLocaleString()}</time>
+                    </div>
+                    <p className="mt-3 text-sm text-slate-600 whitespace-pre-wrap break-words leading-relaxed">{message.message}</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {message.status !== 'read' && <button disabled={busy === message.id} onClick={() => changeStatus(message, 'read')} className="px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold hover:bg-emerald-100 disabled:opacity-50">Mark read</button>}
+                      {message.status !== 'unread' && <button disabled={busy === message.id} onClick={() => changeStatus(message, 'unread')} className="px-3 py-2 rounded-lg bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 disabled:opacity-50">Mark unread</button>}
+                      {message.status !== 'archived' && <button disabled={busy === message.id} onClick={() => changeStatus(message, 'archived')} className="px-3 py-2 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold hover:bg-slate-200 disabled:opacity-50">Archive</button>}
+                      <button disabled={busy === message.id} onClick={() => remove(message)} className="px-3 py-2 rounded-lg bg-rose-50 text-rose-700 text-xs font-bold hover:bg-rose-100 disabled:opacity-50">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

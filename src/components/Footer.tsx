@@ -22,6 +22,7 @@ export default function Footer() {
       <div className="flex gap-4">
         <Link to="/privacy" className="hover:text-white cursor-pointer uppercase">{settings.footerLink1}</Link>
         <Link to="/terms" className="hover:text-white cursor-pointer uppercase">{settings.footerLink2}</Link>
+        <Link to="/contact" className="hover:text-white cursor-pointer uppercase hidden sm:inline">Contact</Link>
         <span className="uppercase">&copy; {currentYear} {settings.footerCompany}</span>
       </div>
     </footer>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Menu, X, Heart, Search, User as UserIcon,  Compass, ShoppingBag } from 'lucide-react';
+import { ShoppingCart, Menu, X, Heart, Search, User as UserIcon, Compass, ShoppingBag, Mail } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useCart } from '../context/CartContext';
@@ -70,6 +70,7 @@ export default function Navbar() {
               {[
                 { to: '/catalog', label: 'Explore', icon: Compass },
                 { to: '/wishlist', label: 'Wishlist', icon: Heart },
+                { to: '/contact', label: 'Contact', icon: Mail },
               ].map((item) => (
                 <Link 
                   key={item.to}
@@ -220,6 +221,7 @@ export default function Navbar() {
                   { to: '/', label: 'Home', icon: Compass },
                   { to: '/catalog', label: 'Catalog', icon: ShoppingBag },
                   { to: '/wishlist', label: 'Wishlist', icon: Heart },
+                  { to: '/contact', label: 'Contact', icon: Mail },
                   { to: '/cart', label: 'Cart', icon: ShoppingCart },
                   ...(user ? [{ to: '/profile', label: 'My Account', icon: UserIcon }] : []),
                 ].map((item) => (

@@ -14,6 +14,7 @@ import orderRoutes from './server/routes/orders';
 import sqlRoutes from './server/routes/sql';
 import adminRoutes from './server/routes/admin';
 import aiRoutes from './server/routes/ai';
+import messageRoutes from './server/routes/messages';
 import { googleIntegrationStatus, syncFullAppSnapshot } from './server/integrations/google';
 import { seedIfEmpty } from './server/seed';
 import { ensureSchema } from './server/schema';
@@ -185,6 +186,7 @@ async function startServer() {
   app.use('/api/sql', sqlRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/ai', aiRoutes);
+  app.use('/api/messages', messageRoutes);
 
   // Ensure schema exists, then seed DB on startup if empty
   ensureSchema()

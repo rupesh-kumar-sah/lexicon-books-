@@ -58,6 +58,17 @@ export interface AdminOrder extends Order {
   customerEmail: string;
 }
 
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  status: 'unread' | 'read' | 'archived';
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Review {
   id: string;
   bookId: string;

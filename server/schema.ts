@@ -14,6 +14,20 @@ const STATEMENTS: string[] = [
   )`,
   `CREATE INDEX IF NOT EXISTS users_email_idx ON users (email)`,
 
+  `CREATE TABLE IF NOT EXISTS contact_messages (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    subject TEXT NOT NULL DEFAULT '',
+    message TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'unread',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )`,
+  `CREATE INDEX IF NOT EXISTS contact_messages_status_idx ON contact_messages (status)`,
+  `CREATE INDEX IF NOT EXISTS contact_messages_created_at_idx ON contact_messages (created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS contact_messages_email_idx ON contact_messages (email)`,
+
   `CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -67,6 +81,7 @@ const STATEMENTS: string[] = [
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
   `CREATE INDEX IF NOT EXISTS books_featured_idx ON books (featured)`,
+  `CREATE INDEX IF NOT EXISTS books_featured_created_at_idx ON books (featured, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS books_genre_idx ON books (genre)`,
   `CREATE INDEX IF NOT EXISTS books_created_at_idx ON books (created_at DESC)`,
 
@@ -80,6 +95,7 @@ const STATEMENTS: string[] = [
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
   `CREATE INDEX IF NOT EXISTS reviews_book_id_idx ON reviews (book_id)`,
+  `CREATE INDEX IF NOT EXISTS reviews_book_created_at_idx ON reviews (book_id, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS reviews_user_id_idx ON reviews (user_id)`,
 
   `CREATE TABLE IF NOT EXISTS wishlist_items (
@@ -89,6 +105,7 @@ const STATEMENTS: string[] = [
     PRIMARY KEY (user_id, book_id)
   )`,
   `CREATE INDEX IF NOT EXISTS wishlist_items_user_id_idx ON wishlist_items (user_id)`,
+  `CREATE INDEX IF NOT EXISTS wishlist_items_user_added_at_idx ON wishlist_items (user_id, added_at DESC)`,
 
   `CREATE TABLE IF NOT EXISTS orders (
     id TEXT PRIMARY KEY,
@@ -106,10 +123,14 @@ const STATEMENTS: string[] = [
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
   `CREATE INDEX IF NOT EXISTS orders_user_id_idx ON orders (user_id)`,
+  `CREATE INDEX IF NOT EXISTS orders_user_created_at_idx ON orders (user_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS orders_status_created_at_idx ON orders (status, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS orders_created_at_idx ON orders (created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS books_price_idx ON books (price)`,
   `CREATE INDEX IF NOT EXISTS books_genre_trgm_idx ON books (genre)`,
   `CREATE INDEX IF NOT EXISTS books_genre_idx ON books (genre)`,
+  `CREATE INDEX IF NOT EXISTS users_created_at_idx ON users (created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS contact_messages_status_created_at_idx ON contact_messages (status, created_at DESC)`,
 
   `CREATE TABLE IF NOT EXISTS site_settings (
     id TEXT PRIMARY KEY,

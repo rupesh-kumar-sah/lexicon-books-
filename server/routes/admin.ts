@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { adminQuery } from '../db';
 import { requireAdmin } from '../auth';
-import { getCache, setCache } from '../cache';
+import { getCache, setCache, clearCache } from '../cache';
 
 const router = Router();
 
@@ -182,6 +182,7 @@ router.patch('/orders/:id/status', requireAdmin, async (req, res) => {
       [status, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    await clearCache('admin:stats');
     res.json({ ok: true, order: result.rows[0] });
   } catch (e: any) {
     console.error('admin update order status error', e);
@@ -193,6 +194,7 @@ router.delete('/orders/:id', requireAdmin, async (req, res) => {
   try {
     const result = await adminQuery('DELETE FROM orders WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    await clearCache('admin:stats');
     res.json({ ok: true });
   } catch (e: any) {
     console.error('admin delete order error', e);
@@ -257,6 +259,7 @@ router.patch('/users/:id', requireAdmin, async (req: any, res) => {
       [role, req.params.id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    await clearCache('admin:stats');
     res.json({ ok: true, user: result.rows[0] });
   } catch (e: any) {
     console.error('admin update user role error', e);
@@ -271,10 +274,72 @@ router.delete('/users/:id', requireAdmin, async (req: any, res) => {
     }
     const result = await adminQuery('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    await clearCache('admin:stats');
     res.json({ ok: true });
   } catch (e: any) {
     console.error('admin delete user error', e);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// ----------------------------------------------------- CONTACT MESSAGES
+router.get('/messages', requireAdmin, async (req, res) => {
+  try {
+    const status = typeof req.query.status === 'string' ? req.query.status : 'all';
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().toLowerCase() : '';
+    const params: any[] = [];
+    const filters: string[] = [];
+    if (status !== 'all' && ['unread', 'read', 'archived'].includes(status)) {
+      params.push(status);
+      filters.push(`status = $${params.length}`);
+    }
+    if (search) {
+      params.push(`%${search}%`);
+      filters.push(`(LOWER(name) LIKE $${params.length} OR LOWER(email) LIKE $${params.length} OR LOWER(subject) LIKE $${params.length} OR LOWER(message) LIKE $${params.length})`);
+    }
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+    const result = await adminQuery<any>(
+      `SELECT id, name, email, subject, message, status, created_at, updated_at
+         FROM contact_messages ${where} ORDER BY created_at DESC LIMIT 500`,
+      params,
+    );
+    res.json({ messages: result.rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      subject: r.subject,
+      message: r.message,
+      status: r.status,
+      createdAt: new Date(r.created_at).getTime(),
+      updatedAt: new Date(r.updated_at).getTime(),
+    })) });
+  } catch (error) {
+    console.error('admin list messages error', error);
+    res.status(500).json({ error: 'Failed to load messages' });
+  }
+});
+
+router.patch('/messages/:id', requireAdmin, async (req, res) => {
+  const status = req.body?.status;
+  if (!['unread', 'read', 'archived'].includes(status)) return res.status(400).json({ error: 'Invalid message status' });
+  try {
+    const result = await adminQuery('UPDATE contact_messages SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING id, status', [status, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Message not found' });
+    res.json({ ok: true, message: result.rows[0] });
+  } catch (error) {
+    console.error('admin update message error', error);
+    res.status(500).json({ error: 'Failed to update message' });
+  }
+});
+
+router.delete('/messages/:id', requireAdmin, async (req, res) => {
+  try {
+    const result = await adminQuery('DELETE FROM contact_messages WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Message not found' });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('admin delete message error', error);
+    res.status(500).json({ error: 'Failed to delete message' });
   }
 });
 

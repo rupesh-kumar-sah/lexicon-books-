@@ -285,29 +285,24 @@ router.post('/login', async (req, res) => {
     if (userRole === 'admin') {
       const { latitude, longitude, device } = req.body || {};
 
-      // In development mode, skip device/location verification for testing
-      if (process.env.NODE_ENV !== 'production') {
-        // Allow admin login without device restrictions in development
-      } else {
-        if (!latitude || !longitude || !device) {
-          return res.status(401).json({ 
-            error: 'Admin security verification required. Please allow location access.', 
-            requiresAdminVerification: true 
-          });
-        }
+      if (!Number.isFinite(Number(latitude)) || !Number.isFinite(Number(longitude)) || !device) {
+        return res.status(401).json({
+          error: 'Admin security verification required. Please allow location access.',
+          requiresAdminVerification: true,
+        });
+      }
 
-        const geoIpResult = await enforceAdminGeoIp(req);
-        if (!geoIpResult.allowed) {
-          return res.status(403).json({ error: 'Admin login is outside the allowed network or location policy' });
-        }
+      const geoIpResult = await enforceAdminGeoIp(req);
+      if (!geoIpResult.allowed) {
+        return res.status(403).json({ error: 'Admin login is outside the allowed network or location policy' });
+      }
 
-        const ua = String(device || '').toLowerCase();
-        const normalizedDevice = ua.replace(/[\s_-]+/g, '');
-        // Chrome may expose the model as "SM-E236", "SM E236", "SME236", or "Samsung F23".
-        const isSamsungF23 = ua.includes('samsung f23') || ua.includes('sm-e236') || normalizedDevice.includes('sme236');
-        if (!isSamsungF23) {
-          return res.status(403).json({ error: 'Admin login is restricted to Samsung F23 devices only' });
-        }
+      const ua = String(device).toLowerCase();
+      const normalizedDevice = ua.replace(/[\s_-]+/g, '');
+      // Chrome may expose the model as "SM-E236", "SM E236", "SME236", or "Samsung F23".
+      const isSamsungF23 = ua.includes('samsung f23') || ua.includes('sm-e236') || normalizedDevice.includes('sme236');
+      if (!isSamsungF23) {
+        return res.status(403).json({ error: 'Admin login is restricted to Samsung F23 devices only' });
       }
     }
 

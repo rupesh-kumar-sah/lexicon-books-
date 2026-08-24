@@ -131,12 +131,30 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+function validateBookPayload(input: any, partial = false) {
+  const b = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  const textFields = ['title', 'author', 'description', 'coverImage', 'isbn', 'genre'];
+  for (const field of textFields) {
+    if (b[field] !== undefined && typeof b[field] !== 'string') return `Invalid ${field}`;
+  }
+  const limits: Record<string, number> = { title: 200, author: 160, description: 10000, coverImage: 2000, isbn: 32, genre: 80 };
+  for (const [field, max] of Object.entries(limits)) {
+    if (typeof b[field] === 'string' && b[field].trim().length > max) return `${field} is too long`;
+  }
+  if (!partial && (!b.title?.trim() || !b.author?.trim())) return 'Title and author are required';
+  if (b.price !== undefined && (!Number.isFinite(Number(b.price)) || Number(b.price) < 0 || Number(b.price) > 99999999)) return 'Price must be between 0 and 99,999,999';
+  if (b.stock !== undefined && (!Number.isInteger(Number(b.stock)) || Number(b.stock) < 0 || Number(b.stock) > 1000000000)) return 'Stock must be a whole number from 0';
+  if (b.rating !== undefined && (!Number.isFinite(Number(b.rating)) || Number(b.rating) < 0 || Number(b.rating) > 5)) return 'Rating must be between 0 and 5';
+  if (b.year !== undefined && (!Number.isInteger(Number(b.year)) || Number(b.year) < 0 || Number(b.year) > 3000)) return 'Year must be a whole number between 0 and 3000';
+  if (b.featured !== undefined && typeof b.featured !== 'boolean') return 'Featured must be boolean';
+  return null;
+}
+
 router.post('/', requireAdmin, async (req, res) => {
   try {
     const b = req.body || {};
-    if (!b.title?.trim() || !b.author?.trim()) {
-      return res.status(400).json({ error: 'Title and author are required' });
-    }
+    const validationError = validateBookPayload(b);
+    if (validationError) return res.status(400).json({ error: validationError });
     const id = newId();
     await query(
       `INSERT INTO books (id, title, author, description, price, cover_image, isbn, genre, stock, rating, year, featured)
@@ -145,20 +163,21 @@ router.post('/', requireAdmin, async (req, res) => {
         id,
         b.title.trim(),
         b.author.trim(),
-        b.description || '',
-        Number(b.price) || 0,
-        b.coverImage || '',
-        b.isbn || '',
-        b.genre || 'Fiction',
-        Number(b.stock) || 0,
-        Math.max(0, Math.min(5, Number(b.rating) || 0)),
-        Number(b.year) || new Date().getFullYear(),
+        b.description?.trim() || '',
+        Number(b.price ?? 0),
+        b.coverImage?.trim() || '',
+        b.isbn?.trim() || '',
+        b.genre?.trim() || 'Fiction',
+        Number(b.stock ?? 0),
+        Number(b.rating ?? 0),
+        Number(b.year ?? new Date().getFullYear()),
         Boolean(b.featured),
       ]
     );
     const result = await query(`${BOOK_BASE_SELECT} WHERE b.id = $1`, [id]);
     clearCache('books:');
     clearCache('genres');
+    clearCache('admin:stats');
     res.json({ book: rowToBook(result.rows[0]) });
   } catch (e: any) {
     console.error('create book error', e);
@@ -169,6 +188,10 @@ router.post('/', requireAdmin, async (req, res) => {
 router.put('/:id', requireAdmin, async (req, res) => {
   try {
     const b = req.body || {};
+    const validationError = validateBookPayload(b, true);
+    if (validationError) return res.status(400).json({ error: validationError });
+    const editableFields = ['title', 'author', 'description', 'price', 'coverImage', 'isbn', 'genre', 'stock', 'rating', 'year', 'featured'];
+    if (!editableFields.some((field) => b[field] !== undefined)) return res.status(400).json({ error: 'At least one book field is required' });
     await query(
       `UPDATE books SET
          title = COALESCE($2, title),
@@ -202,6 +225,7 @@ router.put('/:id', requireAdmin, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Book not found' });
     clearCache('books:');
     clearCache('genres');
+    clearCache('admin:stats');
     res.json({ book: rowToBook(result.rows[0]) });
   } catch (e: any) {
     console.error('update book error', e);
@@ -211,9 +235,11 @@ router.put('/:id', requireAdmin, async (req, res) => {
 
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
-    await query('DELETE FROM books WHERE id = $1', [req.params.id]);
+    const result = await query('DELETE FROM books WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Book not found' });
     clearCache('books:');
     clearCache('genres');
+    clearCache('admin:stats');
     res.json({ ok: true });
   } catch (e: any) {
     console.error('delete book error', e);
