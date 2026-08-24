@@ -47,6 +47,15 @@ try {
   assert(created.status === 200 && created.body?.book?.id, `book create failed: ${created.status}`);
   bookId = created.body.book.id;
 
+  const stockAdded = await readJson(await fetch(`${baseUrl}/api/books/${bookId}/stock`, {
+    method: 'PATCH', headers, body: JSON.stringify({ delta: 2 }),
+  }));
+  assert(stockAdded.status === 200 && stockAdded.body?.book?.stock === 5, `stock add failed: ${stockAdded.status}`);
+  const stockUnderflow = await readJson(await fetch(`${baseUrl}/api/books/${bookId}/stock`, {
+    method: 'PATCH', headers, body: JSON.stringify({ delta: -6 }),
+  }));
+  assert(stockUnderflow.status === 400, `stock underflow was accepted: ${stockUnderflow.status}`);
+
   const emptyUpdate = await readJson(await fetch(`${baseUrl}/api/books/${bookId}`, { method: 'PUT', headers, body: '{}' }));
   assert(emptyUpdate.status === 400, `empty book update accepted: ${emptyUpdate.status}`);
 
@@ -57,6 +66,21 @@ try {
   assert(orderList.status === 200 && Array.isArray(orderList.body?.orders), `admin order filter failed: ${orderList.status}`);
   const messageList = await readJson(await fetch(`${baseUrl}/api/admin/messages?status=unread`, { headers }));
   assert(messageList.status === 200 && Array.isArray(messageList.body?.messages), `admin message filter failed: ${messageList.status}`);
+
+  const configuredSystemAdmin = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+  if (configuredSystemAdmin) {
+    const protectedAccount = await query<{ id: string }>('SELECT id FROM users WHERE LOWER(email) = $1', [configuredSystemAdmin]);
+    if (protectedAccount.rows[0]) {
+      const userList = await readJson(await fetch(`${baseUrl}/api/admin/users`, { headers }));
+      assert(userList.status === 200 && !userList.body?.users?.some((user: { id: string }) => user.id === protectedAccount.rows[0].id), 'system administrator leaked into the user list');
+      const protectedRoleChange = await readJson(await fetch(`${baseUrl}/api/admin/users/${protectedAccount.rows[0].id}`, {
+        method: 'PATCH', headers, body: JSON.stringify({ role: 'user' }),
+      }));
+      assert(protectedRoleChange.status === 403, `system administrator role protection failed: ${protectedRoleChange.status}`);
+      const protectedDelete = await readJson(await fetch(`${baseUrl}/api/admin/users/${protectedAccount.rows[0].id}`, { method: 'DELETE', headers }));
+      assert(protectedDelete.status === 403, `system administrator deletion protection failed: ${protectedDelete.status}`);
+    }
+  }
 
   const settingsBefore = await readJson(await fetch(`${baseUrl}/api/admin/settings`));
   assert(settingsBefore.status === 200 && settingsBefore.body?.settings, `settings read failed: ${settingsBefore.status}`);

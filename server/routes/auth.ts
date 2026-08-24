@@ -15,7 +15,7 @@ import {
   setRefreshCookie,
   clearRefreshCookie,
 } from '../auth';
-import { sendPasswordResetEmail } from '../integrations/google';
+import { sendPasswordResetCodeEmail } from '../integrations/google';
 import { checkAdminLoginSecurity } from '../adminSecurity';
 
 const router = Router();
@@ -25,6 +25,7 @@ const LOCKOUT_MINUTES = 15;
 const GOOGLE_SCOPES = ['openid', 'email', 'profile'];
 const RESET_TTL_MINUTES = Math.max(10, Math.min(120, Number(process.env.PASSWORD_RESET_TTL_MINUTES || 30)));
 const resetRequestWindows = new Map<string, { count: number; resetAt: number }>();
+const resetCompletionWindows = new Map<string, { count: number; resetAt: number }>();
 
 function normalizeEmail(value: unknown) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -42,6 +43,18 @@ function canRequestReset(key: string) {
     return true;
   }
   if (existing.count >= 5) return false;
+  existing.count += 1;
+  return true;
+}
+
+function canCompleteReset(key: string) {
+  const now = Date.now();
+  const existing = resetCompletionWindows.get(key);
+  if (!existing || existing.resetAt <= now) {
+    resetCompletionWindows.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    return true;
+  }
+  if (existing.count >= 8) return false;
   existing.count += 1;
   return true;
 }
@@ -115,7 +128,7 @@ router.get('/google/callback', async (req, res) => {
 });
 
 router.post('/password-reset/request', async (req, res) => {
-  const genericResponse = { message: 'If an account exists for that email, a password reset link will be sent shortly.' };
+  const genericResponse = { message: 'If an account exists for that email, a one-time reset code will be sent shortly.' };
   const email = normalizeEmail(req.body?.email);
   const requestKey = `${req.ip || 'unknown'}:${email || 'invalid'}`;
   if (!email || !canRequestReset(requestKey)) return res.json(genericResponse);
@@ -124,8 +137,8 @@ router.post('/password-reset/request', async (req, res) => {
     const result = await query<{ id: string }>('SELECT id FROM users WHERE email = $1', [email]);
     if (result.rows.length === 0) return res.json(genericResponse);
 
-    const rawToken = crypto.randomBytes(32).toString('base64url');
-    const tokenHash = hashResetToken(rawToken);
+    const resetCode = crypto.randomInt(10_000_000, 100_000_000).toString();
+    const tokenHash = hashResetToken(resetCode);
     const tokenId = newId();
     const expiresAt = new Date(Date.now() + RESET_TTL_MINUTES * 60 * 1000);
     await query('DELETE FROM password_reset_tokens WHERE user_id = $1 OR expires_at <= NOW()', [result.rows[0].id]);
@@ -134,20 +147,7 @@ router.post('/password-reset/request', async (req, res) => {
       [tokenId, result.rows[0].id, tokenHash, expiresAt],
     );
 
-    const baseUrl = process.env.PUBLIC_BASE_URL;
-    if (baseUrl) {
-      try {
-        const parsedBaseUrl = new URL(baseUrl);
-        if (parsedBaseUrl.protocol !== 'https:' && process.env.NODE_ENV === 'production') throw new Error('PUBLIC_BASE_URL must use HTTPS in production');
-        const resetUrl = new URL('/reset-password', parsedBaseUrl);
-        resetUrl.searchParams.set('token', rawToken);
-        await sendPasswordResetEmail(email, resetUrl.toString());
-      } catch (error) {
-        console.error('[Auth] Password reset skipped: PUBLIC_BASE_URL is invalid.');
-      }
-    } else {
-      console.error('[Auth] Password reset skipped: PUBLIC_BASE_URL is not configured.');
-    }
+    await sendPasswordResetCodeEmail(email, resetCode);
     return res.json(genericResponse);
   } catch (error) {
     console.error('password reset request error', error);
@@ -156,23 +156,35 @@ router.post('/password-reset/request', async (req, res) => {
 });
 
 router.post('/password-reset/complete', async (req, res) => {
-  const token = typeof req.body?.token === 'string' ? req.body.token : '';
+  const email = normalizeEmail(req.body?.email);
+  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
-  if (!token || token.length < 32 || password.length < 8) {
-    return res.status(400).json({ error: 'A valid reset token and a password of at least 8 characters are required.' });
+  const completionKey = `${req.ip || 'unknown'}:${email || 'invalid'}`;
+  if (!email || !/^\d{8}$/.test(code) || password.length < 8) {
+    return res.status(400).json({ error: 'Enter your email, the 8-digit reset code, and a password of at least 8 characters.' });
+  }
+  if (!canCompleteReset(completionKey)) {
+    return res.status(429).json({ error: 'Too many reset attempts. Please request a new code and try again later.' });
   }
 
-  const tokenHash = hashResetToken(token);
+  const tokenHash = hashResetToken(code);
   const client = await (await import('../db')).pool.connect();
   try {
     await client.query('BEGIN');
     const tokenResult = await client.query<{ user_id: string }>(
-      'SELECT user_id FROM password_reset_tokens WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW() FOR UPDATE',
-      [tokenHash],
+      `SELECT p.user_id
+         FROM password_reset_tokens p
+         JOIN users u ON u.id = p.user_id
+        WHERE u.email = $1
+          AND p.token_hash = $2
+          AND p.used_at IS NULL
+          AND p.expires_at > NOW()
+        FOR UPDATE OF p`,
+      [email, tokenHash],
     );
     if (tokenResult.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+      return res.status(400).json({ error: 'This reset code is invalid or has expired.' });
     }
 
     const passwordHash = await hashPassword(password);
@@ -180,6 +192,7 @@ router.post('/password-reset/complete', async (req, res) => {
     await client.query('UPDATE users SET password_hash = $1, failed_login_attempts = 0, locked_until = NULL WHERE id = $2', [passwordHash, userId]);
     await client.query('UPDATE password_reset_tokens SET used_at = NOW() WHERE token_hash = $1', [tokenHash]);
     await client.query('DELETE FROM sessions WHERE user_id = $1', [userId]);
+    await client.query('UPDATE auth_refresh_tokens SET revoked_at = COALESCE(revoked_at, NOW()) WHERE user_id = $1', [userId]);
     await client.query('COMMIT');
     return res.json({ message: 'Password updated. Please sign in with your new password.' });
   } catch (error) {

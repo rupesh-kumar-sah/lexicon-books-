@@ -1027,6 +1027,7 @@ function InventoryView({ onEdit }: { key?: React.Key | string | number; onEdit: 
   const [books, setBooks] = useState<Book[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [adjustingBookId, setAdjustingBookId] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Book; direction: 'asc' | 'desc' }>({
     key: 'title',
     direction: 'asc',
@@ -1051,6 +1052,19 @@ function InventoryView({ onEdit }: { key?: React.Key | string | number; onEdit: 
       reload();
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete book.');
+    }
+  };
+
+  const adjustStock = async (book: Book, delta: number) => {
+    setAdjustingBookId(book.id);
+    try {
+      const { book: updated } = await bookApi.adjustStock(book.id, delta);
+      setBooks((current) => current.map((item) => item.id === book.id ? { ...item, stock: updated.stock } : item));
+      toast.success(`${delta > 0 ? 'Added' : 'Removed'} ${Math.abs(delta)} unit${Math.abs(delta) === 1 ? '' : 's'} for "${book.title}"`);
+    } catch (err: any) {
+      toast.error(err.message || 'Unable to adjust stock.');
+    } finally {
+      setAdjustingBookId(null);
     }
   };
 
@@ -1163,6 +1177,26 @@ function InventoryView({ onEdit }: { key?: React.Key | string | number; onEdit: 
                         />
                       </div>
                       <span className="text-[10px] font-bold text-slate-900 uppercase">{book.stock} units</span>
+                      <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white">
+                        <button
+                          type="button"
+                          aria-label={`Remove one unit of ${book.title}`}
+                          disabled={adjustingBookId === book.id || book.stock === 0}
+                          onClick={() => adjustStock(book, -1)}
+                          className="h-7 w-7 text-sm font-bold text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          −
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Add one unit of ${book.title}`}
+                          disabled={adjustingBookId === book.id}
+                          onClick={() => adjustStock(book, 1)}
+                          className="h-7 w-7 border-l border-slate-200 text-sm font-bold text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
                   </td>
                   <td className="px-8 py-6 font-bold text-sm text-slate-900">Rs.{book.price.toFixed(2)}</td>
@@ -1899,7 +1933,7 @@ function AdminLoginForm() {
     try {
       if (resetMode) {
         await authApi.requestPasswordReset(email.trim());
-        setResetMessage('If an admin account exists for that email, a reset link will be sent shortly.');
+        setResetMessage('If an admin account exists for that email, a one-time reset code will be sent shortly.');
         return;
       }
       const signals = await collectAdminLoginSignals();
@@ -1951,7 +1985,7 @@ function AdminLoginForm() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {resetMode ? (
             <>
-              <p className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">Request a one-time reset link for the admin email. Admin access still requires Dell laptop + Chrome verification and location after the password is changed.</p>
+              <p className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">Request a one-time reset code for the admin email. Admin access still requires Dell laptop + Chrome verification and location after the password is changed.</p>
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Admin email</label>
                 <input
@@ -1970,7 +2004,7 @@ function AdminLoginForm() {
                 className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl hover:bg-rose-600 transition-colors shadow-lg disabled:opacity-60 flex items-center justify-center gap-2 mt-4"
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-                Send Admin Reset Link
+                Send Admin Reset Code
               </button>
               <button type="button" onClick={() => { setResetMode(false); setResetMessage(null); setError(null); }} className="w-full text-sm font-bold text-slate-600 hover:text-rose-600">Back to Admin Sign In</button>
             </>

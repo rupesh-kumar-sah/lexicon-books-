@@ -113,24 +113,24 @@ async function sendGmailMessage(to: string, subject: string, body: string): Prom
   return true;
 }
 
-export async function sendPasswordResetEmail(to: string, resetUrl: string): Promise<void> {
+export async function sendPasswordResetCodeEmail(to: string, resetCode: string): Promise<void> {
   try {
     const sent = await sendGmailMessage(
       to,
-      '[Lexicon Books] Reset your password',
+      '[Lexicon Books] Your password reset code',
       [
         'We received a request to reset your Lexicon Books password.',
         '',
-        `Use this one-time link within ${process.env.PASSWORD_RESET_TTL_MINUTES || '30'} minutes:`,
-        resetUrl,
+        `Your one-time reset code is: ${resetCode}`,
+        `Enter this code within ${process.env.PASSWORD_RESET_TTL_MINUTES || '30'} minutes on the reset-password page.`,
         '',
         'If you did not request this, you can safely ignore this message.',
-        'For your security, never share this link with anyone.',
+        'For your security, never share this code with anyone.',
       ].join('\n'),
     );
-    if (sent) console.info('[Google] Password-reset email sent.');
+    if (sent) console.info('[Google] Password-reset code email sent.');
   } catch (error) {
-    console.error('[Google] Password-reset email failed:', error instanceof Error ? error.message : error);
+    console.error('[Google] Password-reset code email failed:', error instanceof Error ? error.message : error);
   }
 }
 

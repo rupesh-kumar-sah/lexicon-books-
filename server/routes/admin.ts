@@ -16,6 +16,21 @@ router.use((req, res, next) => {
 const ALLOWED_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'] as const;
 type OrderStatus = (typeof ALLOWED_STATUSES)[number];
 
+function systemAdminEmail() {
+  return (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+}
+
+function isSystemAdministratorEmail(email: unknown) {
+  const configuredEmail = systemAdminEmail();
+  return Boolean(configuredEmail && typeof email === 'string' && email.toLowerCase() === configuredEmail);
+}
+
+async function protectedSystemAdministrator(userId: string) {
+  const result = await adminQuery<{ email: string }>('SELECT email FROM users WHERE id = $1', [userId]);
+  if (result.rows.length === 0) return { exists: false, protected: false };
+  return { exists: true, protected: isSystemAdministratorEmail(result.rows[0].email) };
+}
+
 router.get('/stats', requireAdmin, async (_req, res) => {
   try {
     const cacheKey = 'admin:stats';
@@ -207,11 +222,17 @@ router.get('/users', requireAdmin, async (req, res) => {
   try {
     const search = typeof req.query.search === 'string' ? req.query.search.trim().toLowerCase() : '';
     const params: any[] = [];
-    let where = '';
+    const filters: string[] = [];
+    const configuredEmail = systemAdminEmail();
+    if (configuredEmail) {
+      params.push(configuredEmail);
+      filters.push(`LOWER(u.email) <> $${params.length}`);
+    }
     if (search) {
       params.push(`%${search}%`);
-      where = `WHERE LOWER(u.email) LIKE $1 OR LOWER(u.display_name) LIKE $1`;
+      filters.push(`(LOWER(u.email) LIKE $${params.length} OR LOWER(u.display_name) LIKE $${params.length})`);
     }
+    const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     const sql = `
       SELECT u.id, u.email, u.display_name, u.role, u.created_at,
              COALESCE(o.cnt, 0)::int  AS order_count,
@@ -251,6 +272,9 @@ router.patch('/users/:id', requireAdmin, async (req: any, res) => {
     if (role !== 'user' && role !== 'admin') {
       return res.status(400).json({ error: 'Role must be "user" or "admin"' });
     }
+    const target = await protectedSystemAdministrator(req.params.id);
+    if (!target.exists) return res.status(404).json({ error: 'User not found' });
+    if (target.protected) return res.status(403).json({ error: 'The system administrator account cannot be modified here' });
     if (req.params.id === req.user?.id && role !== 'admin') {
       return res.status(400).json({ error: 'You cannot demote yourself' });
     }
@@ -269,6 +293,9 @@ router.patch('/users/:id', requireAdmin, async (req: any, res) => {
 
 router.delete('/users/:id', requireAdmin, async (req: any, res) => {
   try {
+    const target = await protectedSystemAdministrator(req.params.id);
+    if (!target.exists) return res.status(404).json({ error: 'User not found' });
+    if (target.protected) return res.status(403).json({ error: 'The system administrator account cannot be deleted' });
     if (req.params.id === req.user?.id) {
       return res.status(400).json({ error: 'You cannot delete your own account' });
     }

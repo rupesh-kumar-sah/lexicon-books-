@@ -93,10 +93,10 @@ export const authApi = {
       method: 'POST',
       body: JSON.stringify({ email }),
     }),
-  resetPassword: (token: string, password: string) =>
+  resetPassword: (email: string, code: string, password: string) =>
     request<{ message: string }>('/api/auth/password-reset/complete', {
       method: 'POST',
-      body: JSON.stringify({ token, password }),
+      body: JSON.stringify({ email, code, password }),
     }),
   passkeyStatus: () => request<{ enrolled: boolean; count: number }>('/api/auth/passkeys/status'),
   passkeyRegistrationOptions: () => request<{ challengeId: string; options: any }>('/api/auth/passkeys/register/options', { method: 'POST' }),
@@ -143,6 +143,11 @@ export const bookApi = {
     request<{ book: Book }>('/api/books', { method: 'POST', body: JSON.stringify(book) }),
   update: (id: string, book: Partial<Book>) =>
     request<{ book: Book }>(`/api/books/${id}`, { method: 'PUT', body: JSON.stringify(book) }),
+  adjustStock: (id: string, delta: number) =>
+    request<{ book: Pick<Book, 'id' | 'title' | 'stock'> }>(`/api/books/${id}/stock`, {
+      method: 'PATCH',
+      body: JSON.stringify({ delta }),
+    }),
   remove: (id: string) => request<{ ok: true }>(`/api/books/${id}`, { method: 'DELETE' }),
   reviews: (id: string) => request<{ reviews: Review[] }>(`/api/books/${id}/reviews`),
   addReview: (id: string, input: { rating: number; comment: string }) =>

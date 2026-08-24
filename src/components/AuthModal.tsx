@@ -39,7 +39,7 @@ export default function AuthModal() {
     try {
       if (forgotMode) {
         await authApi.requestPasswordReset(email.trim());
-        setResetMessage('If an account exists for that email, a reset link will be sent shortly.');
+        setResetMessage('If an account exists for that email, a one-time reset code will be sent shortly.');
         return;
       }
       if (mode === 'signin') {
@@ -90,7 +90,7 @@ export default function AuthModal() {
                 {forgotMode ? 'Reset your password' : mode === 'signin' ? 'Welcome back' : 'Create your account'}
               </h2>
               <p className="text-sm text-blue-100 mt-1">
-                {forgotMode ? 'We will send a secure, time-limited reset link.' : mode === 'signin' ? 'Sign in to continue your reading journey.' : 'Join the modern literary portal.'}
+                {forgotMode ? 'We will send a secure, time-limited reset code.' : mode === 'signin' ? 'Sign in to continue your reading journey.' : 'Join the modern literary portal.'}
               </p>
             </div>
 
@@ -119,7 +119,7 @@ export default function AuthModal() {
                     className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-500/20 active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
                   >
                     {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Send Reset Link
+                    Send Reset Code
                   </button>
                   <button type="button" onClick={() => { setForgotMode(false); setResetMessage(null); setError(null); }} className="w-full text-sm font-bold text-blue-600 hover:underline">Back to Sign In</button>
                 </>

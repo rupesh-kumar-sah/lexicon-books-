@@ -35,8 +35,8 @@ try {
   if (mockEmailFile) {
     const messages = (await readFile(mockEmailFile, 'utf8')).trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
     const resetEmail = messages.find((message) => message.to === email);
-    if (!resetEmail || resetEmail.subject !== '[Lexicon Books] Reset your password' || !resetEmail.body.includes(`${baseUrl}/reset-password?token=`)) {
-      throw new Error('Mock email did not capture a valid reset link for the test account.');
+    if (!resetEmail || resetEmail.subject !== '[Lexicon Books] Your password reset code' || !/\b\d{8}\b/.test(resetEmail.body) || /reset-password\?token=|https?:\/\//.test(resetEmail.body)) {
+      throw new Error('Mock email did not capture a valid reset code without a reset link.');
     }
   }
 
@@ -45,28 +45,28 @@ try {
     [userId],
   );
   if (generatedToken.rows.length !== 1 || generatedToken.rows[0].token_hash.length !== 64 || generatedToken.rows[0].used_at !== null) {
-    throw new Error('Password reset request did not create one hashed, unused token.');
+    throw new Error('Password reset request did not create one hashed, unused reset code.');
   }
 
-  const rawToken = crypto.randomBytes(32).toString('base64url');
+  const resetCode = '12345678';
   await query('DELETE FROM password_reset_tokens WHERE user_id = $1', [userId]);
   await query(
     'INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, NOW() + INTERVAL \'10 minutes\')',
-    [`password-reset-token-${suffix}`, userId, crypto.createHash('sha256').update(rawToken).digest('hex')],
+    [`password-reset-code-${suffix}`, userId, crypto.createHash('sha256').update(resetCode).digest('hex')],
   );
 
-  const completed = await jsonRequest('/api/auth/password-reset/complete', { token: rawToken, password: newPassword });
+  const completed = await jsonRequest('/api/auth/password-reset/complete', { email, code: resetCode, password: newPassword });
   if (completed.status !== 200) throw new Error(`Password reset completion failed: ${completed.status}`);
   const user = await query<{ password_hash: string | null }>('SELECT password_hash FROM users WHERE id = $1', [userId]);
   if (!user.rows[0].password_hash || !(await verifyPassword(newPassword, user.rows[0].password_hash))) {
     throw new Error('New password was not stored correctly.');
   }
 
-  const reused = await jsonRequest('/api/auth/password-reset/complete', { token: rawToken, password: 'AnotherPassword789!' });
-  if (reused.status !== 400) throw new Error('Reset token was reusable.');
+  const reused = await jsonRequest('/api/auth/password-reset/complete', { email, code: resetCode, password: 'AnotherPassword789!' });
+  if (reused.status !== 400) throw new Error('Reset code was reusable.');
 
   const tokenState = await query<{ used_at: string | null }>('SELECT used_at FROM password_reset_tokens WHERE user_id = $1', [userId]);
-  if (!tokenState.rows[0]?.used_at) throw new Error('Reset token was not marked used.');
+  if (!tokenState.rows[0]?.used_at) throw new Error('Reset code was not marked used.');
   console.log('PASSWORD RESET END-TO-END TEST PASSED');
 } finally {
   await query('DELETE FROM users WHERE id = $1', [userId]).catch(() => undefined);

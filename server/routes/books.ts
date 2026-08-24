@@ -233,6 +233,36 @@ router.put('/:id', requireAdmin, async (req, res) => {
   }
 });
 
+router.patch('/:id/stock', requireAdmin, async (req, res) => {
+  try {
+    const delta = Number(req.body?.delta);
+    if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > 1000000000) {
+      return res.status(400).json({ error: 'Stock adjustment must be a non-zero whole number within range' });
+    }
+    const result = await query(
+      `UPDATE books
+          SET stock = stock + $1
+        WHERE id = $2
+          AND stock + $1 >= 0
+      RETURNING id, title, stock`,
+      [delta, req.params.id],
+    );
+    if (result.rows.length === 0) {
+      const exists = await query('SELECT id FROM books WHERE id = $1', [req.params.id]);
+      return res.status(exists.rows.length ? 400 : 404).json({
+        error: exists.rows.length ? 'Stock cannot be reduced below zero' : 'Book not found',
+      });
+    }
+    clearCache('books:');
+    clearCache('genres');
+    clearCache('admin:stats');
+    res.json({ book: result.rows[0] });
+  } catch (e: any) {
+    console.error('adjust book stock error', e);
+    res.status(500).json({ error: 'Failed to adjust stock' });
+  }
+});
+
 router.delete('/:id', requireAdmin, async (req, res) => {
   try {
     const result = await query('DELETE FROM books WHERE id = $1 RETURNING id', [req.params.id]);
