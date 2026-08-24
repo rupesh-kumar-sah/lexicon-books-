@@ -16,11 +16,25 @@ export type IntegrationOrder = {
   createdAt?: Date | string | number;
 };
 
-const ADMIN_EMAIL = process.env.ORDER_NOTIFICATION_EMAIL || '';
-const SHEET_ID = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
-const SHEET_ORDER_RANGE = process.env.GOOGLE_SHEETS_ORDER_RANGE || 'Orders!A:O';
-const SHEET_BOOK_RANGE = process.env.GOOGLE_SHEETS_BOOK_RANGE || 'Books!A:H';
-const SHEET_USER_RANGE = process.env.GOOGLE_SHEETS_USER_RANGE || 'Users!A:E';
+function adminEmail() {
+  return process.env.ORDER_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || '';
+}
+
+function sheetId() {
+  return process.env.GOOGLE_SHEETS_SPREADSHEET_ID || '';
+}
+
+function sheetOrderRange() {
+  return process.env.GOOGLE_SHEETS_ORDER_RANGE || 'Orders!A:O';
+}
+
+function sheetBookRange() {
+  return process.env.GOOGLE_SHEETS_BOOK_RANGE || 'Books!A:H';
+}
+
+function sheetUserRange() {
+  return process.env.GOOGLE_SHEETS_USER_RANGE || 'Users!A:E';
+}
 
 function parseServiceAccount() {
   const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
@@ -52,15 +66,15 @@ function createAuth(scopes: string[]) {
 }
 
 function configuredForGmail() {
-  return Boolean((process.env.GMAIL_SENDER || ADMIN_EMAIL) && createAuth(['https://www.googleapis.com/auth/gmail.send']));
+  return Boolean((process.env.GMAIL_SENDER || adminEmail()) && createAuth(['https://www.googleapis.com/auth/gmail.send']));
 }
 
 function configuredForEmail() {
-  return Boolean(ADMIN_EMAIL && configuredForGmail());
+  return Boolean(adminEmail() && configuredForGmail());
 }
 
 function configuredForSheets() {
-  return Boolean(SHEET_ID && createAuth(['https://www.googleapis.com/auth/spreadsheets']));
+  return Boolean(sheetId() && createAuth(['https://www.googleapis.com/auth/spreadsheets']));
 }
 
 function encodeMime(headers: Record<string, string>, body: string) {
@@ -88,7 +102,7 @@ async function sendGmailMessage(to: string, subject: string, body: string): Prom
   const gmail = google.gmail({ version: 'v1', auth });
   const raw = encodeMime(
     {
-      From: process.env.GMAIL_SENDER || ADMIN_EMAIL,
+      From: process.env.GMAIL_SENDER || adminEmail(),
       To: to,
       Subject: subject,
       'Content-Type': 'text/plain; charset=UTF-8',
@@ -150,8 +164,8 @@ export async function notifyOrderCreated(order: IntegrationOrder): Promise<void>
     ].join('\n');
     const raw = encodeMime(
       {
-        From: process.env.GMAIL_SENDER || ADMIN_EMAIL,
-        To: ADMIN_EMAIL,
+        From: process.env.GMAIL_SENDER || adminEmail(),
+        To: adminEmail(),
         Subject: `[Lexicon Books] New order ${order.id.slice(0, 8).toUpperCase()}`,
         'Content-Type': 'text/plain; charset=UTF-8',
       },
@@ -165,9 +179,10 @@ export async function notifyOrderCreated(order: IntegrationOrder): Promise<void>
 }
 
 async function replaceSheetValues(sheets: sheets_v4.Sheets, range: string, values: unknown[][]) {
-  if (!SHEET_ID) return;
+  const spreadsheetId = sheetId();
+  if (!spreadsheetId) return;
   await sheets.spreadsheets.values.update({
-    spreadsheetId: SHEET_ID,
+    spreadsheetId,
     range,
     valueInputOption: 'RAW',
     requestBody: { values },
@@ -181,7 +196,8 @@ export async function syncFullAppSnapshot(): Promise<void> {
   }
   try {
     const auth = createAuth(['https://www.googleapis.com/auth/spreadsheets']);
-    if (!auth || !SHEET_ID) return;
+    const spreadsheetId = sheetId();
+    if (!auth || !spreadsheetId) return;
     const { query } = await import('../db');
     const [books, users, orders] = await Promise.all([
       query<any>('SELECT id, title, author, price, stock, genre, year, featured FROM books ORDER BY created_at DESC'),
@@ -194,9 +210,9 @@ export async function syncFullAppSnapshot(): Promise<void> {
     });
     const sheets = google.sheets({ version: 'v4', auth });
     await Promise.all([
-      replaceSheetValues(sheets, SHEET_BOOK_RANGE, [['id', 'title', 'author', 'price', 'stock', 'genre', 'year', 'featured'], ...books.rows.map((row) => [row.id, row.title, row.author, row.price, row.stock, row.genre, row.year, row.featured])]),
-      replaceSheetValues(sheets, SHEET_USER_RANGE, [['id', 'email', 'display_name', 'role', 'created_at'], ...users.rows.map((row) => [row.id, row.email, row.display_name, row.role, row.created_at])]),
-      replaceSheetValues(sheets, SHEET_ORDER_RANGE, [['id', 'customer_email', 'customer_name', 'customer_phone', 'shipping_address', 'latitude', 'longitude', 'subtotal', 'shipping', 'total', 'status', 'created_at', 'item_quantity'], ...orderRows]),
+      replaceSheetValues(sheets, sheetBookRange(), [['id', 'title', 'author', 'price', 'stock', 'genre', 'year', 'featured'], ...books.rows.map((row) => [row.id, row.title, row.author, row.price, row.stock, row.genre, row.year, row.featured])]),
+      replaceSheetValues(sheets, sheetUserRange(), [['id', 'email', 'display_name', 'role', 'created_at'], ...users.rows.map((row) => [row.id, row.email, row.display_name, row.role, row.created_at])]),
+      replaceSheetValues(sheets, sheetOrderRange(), [['id', 'customer_email', 'customer_name', 'customer_phone', 'shipping_address', 'latitude', 'longitude', 'subtotal', 'shipping', 'total', 'status', 'created_at', 'item_quantity'], ...orderRows]),
     ]);
     console.info('[Google] Full app snapshot synchronized to private Sheets tabs.');
   } catch (error) {
@@ -208,7 +224,7 @@ export function googleIntegrationStatus() {
   return {
     emailConfigured: configuredForEmail(),
     sheetsConfigured: configuredForSheets(),
-    targetEmail: ADMIN_EMAIL,
+    targetEmail: adminEmail(),
     sheetSyncIsServerOnly: true,
   };
 }
