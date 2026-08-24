@@ -22,7 +22,7 @@ try {
   const login = await json(await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password, latitude: 27.7172, longitude: 85.324, device: 'Mozilla/5.0 Samsung F23 Chrome' }),
+    body: JSON.stringify({ email, password, latitude: 27.7172, longitude: 85.324, device: 'Dell Laptop Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36' }),
   }));
   if (login.status !== 200 || !login.body.token) throw new Error(`Admin login failed: ${login.status}`);
   const headers = { 'content-type': 'application/json', authorization: `Bearer ${login.body.token}` };

@@ -297,12 +297,14 @@ router.post('/login', async (req, res) => {
         return res.status(403).json({ error: 'Admin login is outside the allowed network or location policy' });
       }
 
+      // Desktop User-Agent strings are spoofable and usually omit the laptop vendor;
+      // combine this signal with role auth, location, GeoIP, and short-lived sessions.
       const ua = String(device).toLowerCase();
-      const normalizedDevice = ua.replace(/[\s_-]+/g, '');
-      // Chrome may expose the model as "SM-E236", "SM E236", "SME236", or "Samsung F23".
-      const isSamsungF23 = ua.includes('samsung f23') || ua.includes('sm-e236') || normalizedDevice.includes('sme236');
-      if (!isSamsungF23) {
-        return res.status(403).json({ error: 'Admin login is restricted to Samsung F23 devices only' });
+      const isWindows = /windows nt|win32/.test(ua);
+      const isChrome = /(?:chrome|crios)\//.test(ua) && !/(?:edg|edge|opr|opera|firefox|fxios)\//.test(ua);
+      const isDellLaptop = /\bdell(?:\s+inc\.?)?\b/.test(ua) || /\bdell[\s_-]+laptop\b/.test(ua);
+      if (!isWindows || !isChrome || !isDellLaptop) {
+        return res.status(403).json({ error: 'Admin login is restricted to a Dell laptop running Chrome' });
       }
     }
 

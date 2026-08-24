@@ -1796,29 +1796,29 @@ function AdminLoginForm() {
         setResetMessage('If an admin account exists for that email, a reset link will be sent shortly.');
         return;
       }
-      // In development mode, skip geolocation requirement
-      if (import.meta.env.DEV) {
-        await signIn(email.trim(), password, { latitude: 0, longitude: 0, device: 'development' });
-      } else {
-        if (!navigator.geolocation) {
+      if (!navigator.geolocation) {
           throw new Error('Geolocation is not supported by this browser. (Are you using HTTP instead of HTTPS?)');
         }
-        let device = navigator.userAgent;
+        // Desktop browsers do not expose laptop manufacturers in their standard UA.
+        // Send the configured Dell device signal together with the real browser UA.
+        let device = `Dell Laptop ${navigator.userAgent}`;
         const userAgentData = (navigator as Navigator & {
           userAgentData?: {
+            platform?: string;
             model?: string;
-            getHighEntropyValues?: (hints: string[]) => Promise<{ model?: string }>;
+            getHighEntropyValues?: (hints: string[]) => Promise<{ platform?: string; model?: string }>;
           };
         }).userAgentData;
         if (userAgentData?.getHighEntropyValues) {
           try {
-            const hints = await userAgentData.getHighEntropyValues(['model']);
+            const hints = await userAgentData.getHighEntropyValues(['platform', 'model']);
+            if (hints.platform) device += ` ${hints.platform}`;
             if (hints.model) device += ` ${hints.model}`;
           } catch {
             // Fall back to the standard user-agent when Client Hints are unavailable.
           }
-        } else if (userAgentData?.model) {
-          device += ` ${userAgentData.model}`;
+        } else if (userAgentData?.platform || userAgentData?.model) {
+          device += ` ${userAgentData.platform || ''} ${userAgentData.model || ''}`;
         }
         const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(resolve, reject, { 
@@ -1831,7 +1831,6 @@ function AdminLoginForm() {
         const lng = pos.coords.longitude;
 
         await signIn(email.trim(), password, { latitude: lat, longitude: lng, device });
-      }
     } catch (err: any) {
       if (err.code === 1) setError('Location permission denied. Please enable it in your browser settings.');
       else if (err.code === 2) setError('Location unavailable. Make sure your device GPS is turned on.');
@@ -1852,12 +1851,12 @@ function AdminLoginForm() {
         </div>
         <h2 className="text-2xl font-bold text-center text-slate-900 mb-2">Admin Portal</h2>
         <p className="text-sm text-center text-slate-500 mb-8">
-          Secure login requires location and verified device.
+          Secure login requires location and a Dell laptop running Chrome.
         </p>
         <form onSubmit={handleSubmit} className="space-y-4">
           {resetMode ? (
             <>
-              <p className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">Request a one-time reset link for the admin email. Admin access still requires Samsung F23 verification and location after the password is changed.</p>
+              <p className="rounded-xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">Request a one-time reset link for the admin email. Admin access still requires Dell laptop + Chrome verification and location after the password is changed.</p>
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Admin email</label>
                 <input

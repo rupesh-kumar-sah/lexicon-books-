@@ -27,7 +27,7 @@ try {
     [userId, email, await hashPassword(password), 'Rotation Test Admin', null, 'admin'],
   );
 
-  const loginResponse = await login({ latitude: 27.7172, longitude: 85.324, device: 'Samsung F23 Chrome' });
+  const loginResponse = await login({ latitude: 27.7172, longitude: 85.324, device: 'Dell Laptop Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36' });
   if (loginResponse.status !== 200) throw new Error(`Initial admin login failed: ${loginResponse.status}`);
   const initial = await loginResponse.json() as { token?: string };
   const firstCookie = cookieFrom(loginResponse);

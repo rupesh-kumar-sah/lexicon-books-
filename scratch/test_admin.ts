@@ -13,7 +13,7 @@ const ADMIN_PASSWORD = 'password123'; // use same as signup test
       password: ADMIN_PASSWORD,
       latitude: 27.7,
       longitude: 85.3,
-      device: 'Samsung F23'
+      device: 'Dell Laptop Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36'
     })
   });
   const loginData = await loginRes.json();
