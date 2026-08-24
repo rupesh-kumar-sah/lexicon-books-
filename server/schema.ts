@@ -179,6 +179,28 @@ const STATEMENTS: string[] = [
     admin_pin TEXT NOT NULL DEFAULT '0000',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`,
+  // Migrate databases that already had a minimal site_settings table before the
+  // configurable storefront fields were added. CREATE TABLE IF NOT EXISTS alone
+  // does not add columns to an existing PostgreSQL table.
+  `ALTER TABLE site_settings
+     ADD COLUMN IF NOT EXISTS site_name TEXT NOT NULL DEFAULT 'BookSellNP',
+     ADD COLUMN IF NOT EXISTS tagline TEXT NOT NULL DEFAULT 'Curated Selections for the Modern Mind.',
+     ADD COLUMN IF NOT EXISTS primary_color TEXT NOT NULL DEFAULT '#2563eb',
+     ADD COLUMN IF NOT EXISTS accent_color TEXT NOT NULL DEFAULT '#0f172a',
+     ADD COLUMN IF NOT EXISTS hero_image TEXT NOT NULL DEFAULT '',
+     ADD COLUMN IF NOT EXISTS shipping_ktm NUMERIC(10,2) NOT NULL DEFAULT 100,
+     ADD COLUMN IF NOT EXISTS shipping_outside NUMERIC(10,2) NOT NULL DEFAULT 150,
+     ADD COLUMN IF NOT EXISTS free_shipping_threshold NUMERIC(10,2) NOT NULL DEFAULT 5000,
+     ADD COLUMN IF NOT EXISTS footer_text_1 TEXT NOT NULL DEFAULT 'Secure SSL Checkout',
+     ADD COLUMN IF NOT EXISTS footer_text_2 TEXT NOT NULL DEFAULT '30-Day Easy Returns',
+     ADD COLUMN IF NOT EXISTS footer_text_3 TEXT NOT NULL DEFAULT 'Global Shipping Available',
+     ADD COLUMN IF NOT EXISTS footer_link_1 TEXT NOT NULL DEFAULT 'Privacy',
+     ADD COLUMN IF NOT EXISTS footer_link_2 TEXT NOT NULL DEFAULT 'Terms',
+     ADD COLUMN IF NOT EXISTS footer_company TEXT NOT NULL DEFAULT 'BOOKSELLNP MEDIA GROUP',
+     ADD COLUMN IF NOT EXISTS privacy_content TEXT NOT NULL DEFAULT '# Privacy Policy\n\nYour privacy is important to us...',
+     ADD COLUMN IF NOT EXISTS terms_content TEXT NOT NULL DEFAULT '# Terms of Service\n\nBy using our service, you agree...',
+     ADD COLUMN IF NOT EXISTS admin_pin TEXT NOT NULL DEFAULT '0000',
+     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`,
   `INSERT INTO site_settings (id) VALUES ('default') ON CONFLICT (id) DO NOTHING`,
   `ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL`,
 ];

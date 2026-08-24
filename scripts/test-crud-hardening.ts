@@ -58,6 +58,17 @@ try {
   const messageList = await readJson(await fetch(`${baseUrl}/api/admin/messages?status=unread`, { headers }));
   assert(messageList.status === 200 && Array.isArray(messageList.body?.messages), `admin message filter failed: ${messageList.status}`);
 
+  const settingsBefore = await readJson(await fetch(`${baseUrl}/api/admin/settings`));
+  assert(settingsBefore.status === 200 && settingsBefore.body?.settings, `settings read failed: ${settingsBefore.status}`);
+  const savedPin = (await query<{ admin_pin: string }>(`SELECT admin_pin FROM site_settings WHERE id = 'default'`)).rows[0]?.admin_pin;
+  assert(savedPin, 'default site settings pin is missing');
+  const settingsSave = await readJson(await fetch(`${baseUrl}/api/admin/settings`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ ...settingsBefore.body.settings, adminPin: savedPin }),
+  }));
+  assert(settingsSave.status === 200 && settingsSave.body?.ok, `settings save failed: ${settingsSave.status}`);
+
   const removed = await readJson(await fetch(`${baseUrl}/api/books/${bookId}`, { method: 'DELETE', headers }));
   assert(removed.status === 200, `book delete failed: ${removed.status}`);
   bookId = '';
