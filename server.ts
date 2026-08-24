@@ -35,6 +35,15 @@ const speedLimiter = slowDown({
   delayMs: (hits) => hits * 100, // begin adding 100ms of delay per request above 50
 });
 
+function assertProductionConfiguration(): void {
+  if (process.env.NODE_ENV !== 'production') return;
+  const missing = ['DATABASE_URL', 'JWT_SECRET', 'ADMIN_EMAIL', 'PUBLIC_BASE_URL']
+    .filter((key) => !process.env[key]?.trim());
+  if (missing.length > 0) {
+    throw new Error(`Missing required production environment variables: ${missing.join(', ')}`);
+  }
+}
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   limit: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes).
@@ -45,6 +54,7 @@ const limiter = rateLimit({
 });
 
 async function startServer() {
+  assertProductionConfiguration();
   const app = express();
   const PORT = Number(process.env.PORT) || 5000;
 
