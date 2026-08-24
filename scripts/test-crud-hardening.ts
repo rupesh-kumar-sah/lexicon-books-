@@ -7,6 +7,7 @@ const suffix = crypto.randomBytes(6).toString('hex');
 const userId = `crud-hardening-admin-${suffix}`;
 const email = `crud-hardening-${suffix}@example.test`;
 const password = 'CrudHardeningPassword123!';
+const windowsChrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36';
 let bookId = '';
 
 async function readJson(response: Response) {
@@ -27,11 +28,11 @@ try {
 
   const login = await readJson(await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password, latitude: 27.7172, longitude: 85.324, device: 'Dell Laptop Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36' }),
+    headers: { 'content-type': 'application/json', 'user-agent': windowsChrome },
+    body: JSON.stringify({ email, password, latitude: 27.7172, longitude: 85.324, device: windowsChrome }),
   }));
   assert(login.status === 200 && login.body?.token, `admin login failed: ${login.status}`);
-  const headers = { 'content-type': 'application/json', authorization: `Bearer ${login.body.token}` };
+  const headers = { 'content-type': 'application/json', 'user-agent': windowsChrome, authorization: `Bearer ${login.body.token}` };
 
   const unauthorized = await readJson(await fetch(`${baseUrl}/api/admin/messages`));
   assert(unauthorized.status === 401, `admin endpoint was not protected: ${unauthorized.status}`);

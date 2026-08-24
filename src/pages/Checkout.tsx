@@ -1,27 +1,25 @@
-import React from 'react';
-import { useState, useCallback } from 'react';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { useCallback, useEffect, useState } from 'react';
+import type { FormEvent, InputHTMLAttributes } from 'react';
+import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { useCart } from '../context/CartContext';
 import { useSiteSettings } from '../context/SiteSettingsContext';
-import { ShieldCheck, ArrowLeft, MapPin, Navigation, Loader2, CheckCircle2, DollarSign, Phone } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, DollarSign, Loader2, MapPin, Navigation, RefreshCw, ShieldCheck } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { orderApi } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { useEffect } from 'react';
 
-const MAP_CONTAINER_STYLE = {
-  width: '100%',
-  height: '300px',
-};
-
-const DEFAULT_CENTER = { lat: 27.7172, lng: 85.3240 }; // Default to Kathmandu
+const MAP_CONTAINER_STYLE = { width: '100%', height: '300px' };
+const DEFAULT_CENTER = { lat: 27.7172, lng: 85.3240 };
+type Coordinates = { lat: number; lng: number };
+type ShippingLocation = 'ktm' | 'outside';
 
 export default function Checkout() {
   const { settings } = useSiteSettings();
-  const [shippingLocation, setShippingLocation] = useState<'ktm' | 'outside'>('ktm');
+  const [shippingLocation, setShippingLocation] = useState<ShippingLocation>('ktm');
   const { items, total, clearCart } = useCart();
   const { user, openAuthModal } = useAuth();
   const navigate = useNavigate();
+  const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
   const [formData, setFormData] = useState({
     email: user?.email || '',
@@ -32,59 +30,65 @@ export default function Checkout() {
     city: '',
     zip: '',
     country: 'Nepal',
-    locationCoords: null as { lat: number; lng: number } | null,
+    locationCoords: null as Coordinates | null,
   });
-
-  useEffect(() => {
-    if (user) {
-      setFormData((prev) => ({
-        ...prev,
-        email: user.email,
-        firstName: user.displayName.split(' ')[0] || prev.firstName,
-        lastName: user.displayName.split(' ').slice(1).join(' ') || prev.lastName,
-      }));
-    }
-  }, [user]);
-
+  const [manualCoordinates, setManualCoordinates] = useState({ latitude: '', longitude: '' });
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGeolocating, setIsGeolocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: (import.meta as any).env.VITE_GOOGLE_MAPS_API_KEY || '',
-  });
+  useEffect(() => {
+    if (!user) return;
+    setFormData((prev) => ({
+      ...prev,
+      email: user.email,
+      firstName: user.displayName.split(' ')[0] || prev.firstName,
+      lastName: user.displayName.split(' ').slice(1).join(' ') || prev.lastName,
+    }));
+  }, [user]);
 
-  const onMapClick = useCallback((e: google.maps.MapMouseEvent) => {
-    if (e.latLng) {
-      setFormData((prev) => ({
-        ...prev,
-        locationCoords: { lat: e.latLng!.lat(), lng: e.latLng!.lng() },
-      }));
-    }
+  const setDeliveryCoordinates = useCallback((locationCoords: Coordinates) => {
+    setFormData((prev) => ({ ...prev, locationCoords }));
+    setManualCoordinates({
+      latitude: locationCoords.lat.toFixed(6),
+      longitude: locationCoords.lng.toFixed(6),
+    });
+    setError(null);
   }, []);
+
+  const onMapClick = useCallback((event: google.maps.MapMouseEvent) => {
+    if (!event.latLng) return;
+    setDeliveryCoordinates({ lat: event.latLng.lat(), lng: event.latLng.lng() });
+  }, [setDeliveryCoordinates]);
+
+  const updateManualCoordinate = (axis: 'latitude' | 'longitude', value: string) => {
+    setManualCoordinates((previous) => {
+      const next = { ...previous, [axis]: value };
+      const latitude = Number(next.latitude);
+      const longitude = Number(next.longitude);
+      const valid = Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+      setFormData((current) => ({ ...current, locationCoords: valid ? { lat: latitude, lng: longitude } : null }));
+      return next;
+    });
+  };
 
   const useMyLocation = () => {
     if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser.');
+      setError('Location services are not supported by this browser. Enter your delivery coordinates manually.');
       return;
     }
     setIsGeolocating(true);
+    setError(null);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setFormData((prev) => ({
-          ...prev,
-          locationCoords: {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          },
-        }));
+        setDeliveryCoordinates({ lat: position.coords.latitude, lng: position.coords.longitude });
         setIsGeolocating(false);
       },
       () => {
-        setError('Unable to retrieve your location. Please pin it on the map.');
+        setError('Unable to retrieve your location. Pin it on the map or enter the latitude and longitude manually.');
         setIsGeolocating(false);
-      }
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
     );
   };
 
@@ -92,42 +96,37 @@ export default function Checkout() {
   const shipping = total > 0 ? (isFreeShipping ? 0 : (shippingLocation === 'ktm' ? settings.shippingKtm : settings.shippingOutside)) : 0;
   const finalTotal = total + shipping;
 
-  const handleCheckout = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (items.length === 0) return;
-    setIsProcessing(true);
+  const handleCheckout = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isProcessing || items.length === 0) return;
     setError(null);
-    
-    // Mandatory Location Check
+
     if (!formData.locationCoords) {
-      setError('COMPULSORY: Please pin your exact delivery location on the map to proceed with your order.');
-      setIsProcessing(false);
+      setError('Pin your delivery location on the map or enter valid latitude and longitude before placing your order.');
       return;
     }
 
-    // Phone Validation (Nepali 10-digit mobile)
     const phoneRegex = /^9\d{9}$/;
     if (!phoneRegex.test(formData.phone.replace(/\s/g, ''))) {
-      setError('Please enter a valid 10-digit Nepali mobile number (starting with 9).');
-      setIsProcessing(false);
+      setError('Enter a valid 10-digit Nepali mobile number beginning with 9.');
       return;
     }
 
     if (!user) {
-      setError('You must be logged in to complete your purchase.');
-      setIsProcessing(false);
+      setError('Sign in or create an account before placing your order.');
       return;
     }
 
+    setIsProcessing(true);
     try {
       const { orderId } = await orderApi.create({
-        items: items.map((i) => ({
-          id: i.id,
-          title: i.title,
-          author: i.author,
-          coverImage: i.coverImage,
-          price: i.price,
-          quantity: i.quantity,
+        items: items.map((item) => ({
+          id: item.id,
+          title: item.title,
+          author: item.author,
+          coverImage: item.coverImage,
+          price: item.price,
+          quantity: item.quantity,
         })),
         customer: {
           ...formData,
@@ -138,8 +137,8 @@ export default function Checkout() {
       });
       clearCart();
       navigate(`/order-success?id=${orderId}`);
-    } catch (err: any) {
-      setError(err.message || 'Checkout failed');
+    } catch (requestError: any) {
+      setError(requestError?.message || 'Checkout could not be completed. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -147,265 +146,202 @@ export default function Checkout() {
 
   if (items.length === 0) {
     return (
-      <div className="bg-slate-50 min-h-full py-32 text-center px-8">
-        <h2 className="text-2xl font-bold text-slate-900 mb-4">Your cart is empty</h2>
-        <Link to="/catalog" className="text-blue-600 font-bold hover:underline">
-          Continue shopping →
+      <section className="min-h-[60vh] bg-slate-50 px-4 py-20 text-center sm:px-8" aria-labelledby="empty-cart-heading">
+        <h1 id="empty-cart-heading" className="text-2xl font-bold text-slate-900">Your cart is empty</h1>
+        <Link to="/catalog" className="mt-4 inline-flex text-sm font-bold text-blue-700 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2">
+          Continue shopping
         </Link>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="bg-slate-50 min-h-full py-12">
-      <div className="max-w-7xl mx-auto px-8 grid grid-cols-1 lg:grid-cols-2 gap-20">
-        <form onSubmit={handleCheckout} className="space-y-12">
+    <section id="checkout" className="bg-slate-50 px-4 py-8 sm:px-8 lg:py-12" aria-labelledby="checkout-heading">
+      <div className="mx-auto grid w-full max-w-7xl gap-8 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+        <form onSubmit={handleCheckout} className="min-w-0 space-y-8" noValidate={false}>
           <div>
             <Link
               to="/cart"
-              className="inline-flex items-center text-xs font-bold uppercase tracking-widest text-slate-400 hover:text-blue-700 mb-8 transition-colors"
+              className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-slate-700 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
             >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Return to Cart
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+              Return to cart
             </Link>
-            <h1 className="font-sans text-5xl font-bold mb-8 text-slate-900 tracking-tight leading-tight">
-              Checkout
-            </h1>
+            <h1 id="checkout-heading" className="mt-5 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Checkout</h1>
           </div>
 
-          {/* Shipping Info */}
-          <section className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">Shipping Information</h2>
+          <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8" aria-labelledby="shipping-heading">
+            <h2 id="shipping-heading" className="text-xl font-bold tracking-tight text-slate-900">Shipping information</h2>
             <div className="space-y-4">
-              <Field label="Email Address" required type="email" value={formData.email} onChange={(v) => setFormData({ ...formData, email: v })} />
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="First Name" required value={formData.firstName} onChange={(v) => setFormData({ ...formData, firstName: v })} />
-                <Field label="Last Name" required value={formData.lastName} onChange={(v) => setFormData({ ...formData, lastName: v })} />
+              <Field label="Email address" name="email" autoComplete="email" required type="email" value={formData.email} errorId={error ? 'checkout-error' : undefined} onChange={(value) => setFormData((current) => ({ ...current, email: value }))} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="First name" name="first-name" autoComplete="given-name" required value={formData.firstName} errorId={error ? 'checkout-error' : undefined} onChange={(value) => setFormData((current) => ({ ...current, firstName: value }))} />
+                <Field label="Last name" name="last-name" autoComplete="family-name" required value={formData.lastName} errorId={error ? 'checkout-error' : undefined} onChange={(value) => setFormData((current) => ({ ...current, lastName: value }))} />
               </div>
-              <Field label="Phone Number" required type="tel" placeholder="98XXXXXXXX" value={formData.phone} onChange={(v) => setFormData({ ...formData, phone: v })} />
-              <Field label="Full Delivery Address" required placeholder="e.g. House No, Street Name, Area" value={formData.address} onChange={(v) => setFormData({ ...formData, address: v })} />
-              
-              <div className="space-y-1.5 pt-2">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Delivery Location (for shipping fee)</label>
-                <div className="flex items-center gap-4 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setShippingLocation('ktm')}
-                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${shippingLocation === 'ktm' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
+              <Field label="Phone number" name="phone" autoComplete="tel" inputMode="numeric" pattern="9[0-9]{9}" required type="tel" placeholder="98XXXXXXXX" value={formData.phone} errorId={error ? 'checkout-error' : undefined} onChange={(value) => setFormData((current) => ({ ...current, phone: value }))} />
+              <Field label="Full delivery address" name="address" autoComplete="street-address" required placeholder="House number, street, and area" value={formData.address} errorId={error ? 'checkout-error' : undefined} onChange={(value) => setFormData((current) => ({ ...current, address: value }))} />
+
+              <fieldset className="space-y-3 pt-2">
+                <legend className="text-sm font-semibold text-slate-800">Delivery area for shipping fee</legend>
+                <div className="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2 sm:grid-cols-2">
+                  <button type="button" aria-pressed={shippingLocation === 'ktm'} onClick={() => setShippingLocation('ktm')} className={`min-h-11 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${shippingLocation === 'ktm' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-700 hover:bg-white'}`}>
                     Inside Kathmandu Valley
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShippingLocation('outside')}
-                    className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${shippingLocation === 'outside' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
-                  >
+                  <button type="button" aria-pressed={shippingLocation === 'outside'} onClick={() => setShippingLocation('outside')} className={`min-h-11 rounded-lg px-3 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 ${shippingLocation === 'outside' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-700 hover:bg-white'}`}>
                     Outside Valley
                   </button>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="City / Town" required placeholder="e.g. Lalitpur" value={formData.city} onChange={(v) => setFormData({ ...formData, city: v })} />
-                <Field label="ZIP / Area Code" required placeholder="e.g. 44600" value={formData.zip} onChange={(v) => setFormData({ ...formData, zip: v })} />
+              </fieldset>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="City or town" name="city" autoComplete="address-level2" required placeholder="Lalitpur" value={formData.city} errorId={error ? 'checkout-error' : undefined} onChange={(value) => setFormData((current) => ({ ...current, city: value }))} />
+                <Field label="ZIP or area code" name="zip" autoComplete="postal-code" inputMode="numeric" required placeholder="44600" value={formData.zip} errorId={error ? 'checkout-error' : undefined} onChange={(value) => setFormData((current) => ({ ...current, zip: value }))} />
               </div>
             </div>
           </section>
 
-          {/* Delivery Location Map */}
-          <section className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm space-y-5">
-            <div className="flex items-start justify-between flex-wrap gap-3">
+          <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8" aria-labelledby="location-heading">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-blue-600" />
-                  Delivery Location <span className="text-rose-500 font-bold ml-1">*</span>
+                <h2 id="location-heading" className="flex items-center gap-2 text-xl font-bold tracking-tight text-slate-900">
+                  <MapPin className="w-5 h-5 text-blue-700" aria-hidden="true" />
+                  Delivery location <span className="text-rose-700" aria-label="required">*</span>
                 </h2>
-                <p className="text-xs text-slate-400 mt-1 font-medium">
-                  Tap the map or use your current location to pin the exact delivery point.
-                </p>
+                <p className="mt-1 text-sm text-slate-600">Pin the exact delivery point using the map, location services, or manual coordinates.</p>
               </div>
               <button
                 type="button"
                 onClick={useMyLocation}
                 disabled={isGeolocating}
-                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-500/20 disabled:opacity-60"
+                aria-busy={isGeolocating}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isGeolocating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Navigation className="w-4 h-4" />
-                )}
-                {isGeolocating ? 'Locating...' : 'Use My Location'}
+                {isGeolocating ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" /> : <Navigation className="w-4 h-4" aria-hidden="true" />}
+                {isGeolocating ? 'Locating…' : 'Use my location'}
               </button>
             </div>
 
-            <div className="overflow-hidden border border-slate-200 rounded-xl shadow-inner">
-              {loadError ? (
-                <div className="h-[300px] bg-slate-100 flex flex-col items-center justify-center text-slate-400 gap-2">
-                  <MapPin className="w-8 h-8" />
-                  <p className="text-sm font-medium">Could not load Google Maps.</p>
-                  <p className="text-xs">Check your API key configuration.</p>
-                </div>
-              ) : isLoaded ? (
-                <GoogleMap
-                  mapContainerStyle={MAP_CONTAINER_STYLE}
-                  center={formData.locationCoords || DEFAULT_CENTER}
-                  zoom={formData.locationCoords ? 16 : 12}
-                  onClick={onMapClick}
-                  options={{
-                    mapTypeControl: false,
-                    streetViewControl: false,
-                    fullscreenControl: false,
-                    zoomControlOptions: { position: 3 },
-                  }}
-                >
-                  {formData.locationCoords && (
-                    <Marker
-                      position={formData.locationCoords}
-                      animation={2} // DROP animation
-                    />
-                  )}
-                </GoogleMap>
-              ) : (
-                <div className="h-[300px] bg-slate-100 flex items-center justify-center text-slate-400 gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span className="text-sm font-medium">Loading Map...</span>
-                </div>
-              )}
-            </div>
+            {mapsApiKey ? (
+              <ConfiguredDeliveryMap apiKey={mapsApiKey} locationCoords={formData.locationCoords} manualCoordinates={manualCoordinates} onMapClick={onMapClick} onManualCoordinateChange={updateManualCoordinate} />
+            ) : (
+              <LocationFallback reason="Google Maps is not configured for this deployment." locationCoords={formData.locationCoords} manualCoordinates={manualCoordinates} onManualCoordinateChange={updateManualCoordinate} />
+            )}
 
             {formData.locationCoords ? (
-              <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-100 rounded-xl">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">
-                  Location pinned: {formData.locationCoords.lat.toFixed(5)}, {formData.locationCoords.lng.toFixed(5)}
-                </p>
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-700" aria-hidden="true" />
+                <p className="text-sm font-semibold text-emerald-800">Location pinned: {formData.locationCoords.lat.toFixed(5)}, {formData.locationCoords.lng.toFixed(5)}</p>
               </div>
             ) : (
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">
-                No location pinned yet — tap the map or click "Use My Location"
-              </p>
+              <p className="text-sm font-medium text-slate-700">No location has been pinned yet.</p>
             )}
           </section>
 
-          {error && (
-            <div className="text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">
-              {error}
-            </div>
-          )}
+          <div id="checkout-error" role="status" aria-live="polite" className="min-h-0">
+            {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">{error}</p>}
+          </div>
 
-          {(!user && (
-            <div className="mb-6 rounded-2xl border border-rose-100 bg-rose-50 p-5 text-rose-700">
-              <p className="font-bold">Login required to complete checkout.</p>
-              <p className="text-sm text-rose-600 mt-1">Please sign in or create an account before placing your order.</p>
-              <button
-                type="button"
-                onClick={openAuthModal}
-                className="mt-4 inline-flex items-center justify-center px-6 py-3 rounded-xl bg-rose-600 text-white text-sm font-bold hover:bg-rose-700 transition-all"
-              >
-                Login or Sign Up
-              </button>
-            </div>
-          )) || null}
+          {!user && (
+            <aside className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-rose-800">
+              <p className="font-bold">Login required to complete checkout</p>
+              <p className="mt-1 text-sm">Sign in or create an account before placing your order.</p>
+              <button type="button" onClick={openAuthModal} className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-rose-700 px-5 py-3 text-sm font-bold text-white hover:bg-rose-800 focus:outline-none focus:ring-2 focus:ring-rose-700 focus:ring-offset-2">Login or sign up</button>
+            </aside>
+          )}
 
           <button
             type="submit"
             disabled={isProcessing || !user}
-            className="w-full flex items-center justify-center space-x-3 bg-blue-600 text-white px-8 py-5 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20 disabled:opacity-50"
+            aria-busy={isProcessing}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-3 text-base font-bold text-white hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <span>{isProcessing ? 'Processing...' : !user ? 'Login to checkout' : `Place Order — Rs.${finalTotal.toFixed(2)}`}</span>
+            {isProcessing && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+            <span>{isProcessing ? 'Placing order…' : !user ? 'Login to checkout' : `Place order — Rs.${finalTotal.toFixed(2)}`}</span>
           </button>
         </form>
 
-        {/* Order Summary */}
-        <div className="lg:sticky lg:top-24 h-fit">
-          <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-xl">
-            <h2 className="text-xl font-bold mb-8 text-slate-900 tracking-tight">Order Summary</h2>
-            <div className="space-y-6 mb-10 max-h-[40vh] overflow-y-auto scrollbar-hide pr-2">
+        <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start" aria-labelledby="order-summary-heading">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-lg sm:p-6">
+            <h2 id="order-summary-heading" className="text-xl font-bold tracking-tight text-slate-900">Order summary</h2>
+            <div className="mt-6 space-y-5 pr-2 lg:max-h-[52vh] lg:overflow-y-auto">
               {items.map((item) => (
-                <div key={item.id} className="flex gap-4">
-                  <div className="w-16 h-20 bg-slate-100 rounded-lg overflow-hidden shrink-0">
-                    <img src={item.coverImage} className="w-full h-full object-cover" referrerPolicy="no-referrer" alt="" />
-                  </div>
-                  <div className="flex-grow">
-                    <p className="text-sm font-bold text-slate-900 line-clamp-1">{item.title}</p>
-                    <p className="text-xs text-blue-700 font-medium mb-1">by {item.author}</p>
-                    <div className="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400 tracking-tight">
-                      <span>Qty: {item.quantity}</span>
+                <article key={item.id} className="flex gap-4">
+                  <img src={item.coverImage} width={64} height={80} loading="lazy" decoding="async" className="h-20 w-16 shrink-0 rounded-lg bg-slate-100 object-cover" referrerPolicy="no-referrer" alt={`Cover of ${item.title}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold text-slate-900">{item.title}</p>
+                    <p className="mt-1 text-xs font-medium text-blue-800">by {item.author}</p>
+                    <div className="mt-2 flex items-center justify-between text-xs font-semibold text-slate-600">
+                      <span>Quantity: {item.quantity}</span>
                       <span className="text-slate-900">Rs.{(item.price * item.quantity).toFixed(2)}</span>
                     </div>
                   </div>
-                </div>
+                </article>
               ))}
             </div>
 
-            <div className="space-y-4 pt-8 border-t border-slate-100 mb-8">
-              <div className="flex justify-between text-slate-500 text-sm font-medium">
-                <span>Subtotal</span>
-                <span className="font-bold text-slate-900">Rs.{total.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-slate-500 text-sm font-medium">
-                <span>Shipping</span>
-                <span className="font-bold text-slate-900">{isFreeShipping ? 'Complimentary' : `Rs.${shipping.toFixed(2)}`}</span>
-              </div>
-              <div className="flex justify-between items-center pt-8 border-t border-slate-100">
-                <span className="text-lg font-bold text-slate-900">Total Due</span>
-                <span className="text-3xl font-bold text-slate-900">Rs.{finalTotal.toFixed(2)}</span>
-              </div>
-            </div>
+            <dl className="mt-7 space-y-3 border-t border-slate-200 pt-6 text-sm">
+              <div className="flex justify-between gap-4 text-slate-700"><dt>Subtotal</dt><dd className="font-bold text-slate-900">Rs.{total.toFixed(2)}</dd></div>
+              <div className="flex justify-between gap-4 text-slate-700"><dt>Shipping</dt><dd className="font-bold text-slate-900">{isFreeShipping ? 'Complimentary' : `Rs.${shipping.toFixed(2)}`}</dd></div>
+              <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-5"><dt className="text-lg font-bold text-slate-900">Total due</dt><dd className="text-2xl font-bold text-slate-900">Rs.{finalTotal.toFixed(2)}</dd></div>
+            </dl>
 
-            <div className="space-y-4 mb-8">
-              <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                <DollarSign className="w-5 h-5 text-blue-600 shrink-0" />
-                <div>
-                  <p className="text-[10px] uppercase font-bold tracking-widest text-blue-700">
-                    Payment Method
-                  </p>
-                  <p className="text-xs font-bold text-slate-900">Cash on Delivery (COD)</p>
-                </div>
+            <div className="mt-6 space-y-3">
+              <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3">
+                <DollarSign className="w-5 h-5 shrink-0 text-blue-700" aria-hidden="true" />
+                <div><p className="text-sm font-semibold text-blue-900">Payment method</p><p className="text-xs text-slate-700">Cash on delivery</p></div>
               </div>
-            </div>
-
-            <div className="flex items-center gap-3 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-              <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-              <p className="text-[10px] uppercase font-bold tracking-widest text-emerald-700">
-                Encrypted, secure checkout
-              </p>
+              <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                <ShieldCheck className="w-5 h-5 shrink-0 text-emerald-700" aria-hidden="true" />
+                <p className="text-sm font-semibold text-emerald-800">Secure checkout</p>
+              </div>
             </div>
           </div>
-        </div>
+        </aside>
       </div>
+    </section>
+  );
+}
+
+function ConfiguredDeliveryMap({ apiKey, locationCoords, manualCoordinates, onMapClick, onManualCoordinateChange }: { apiKey: string; locationCoords: Coordinates | null; manualCoordinates: { latitude: string; longitude: string }; onMapClick: (event: google.maps.MapMouseEvent) => void; onManualCoordinateChange: (axis: 'latitude' | 'longitude', value: string) => void }) {
+  const { isLoaded, loadError } = useJsApiLoader({ id: 'google-map-script', googleMapsApiKey: apiKey });
+
+  if (loadError) {
+    return <LocationFallback reason="Google Maps could not load. Check the deployment configuration or enter coordinates manually." locationCoords={locationCoords} manualCoordinates={manualCoordinates} onManualCoordinateChange={onManualCoordinateChange} />;
+  }
+
+  if (!isLoaded) {
+    return <div className="flex h-[300px] items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 text-sm font-medium text-slate-700"><Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />Loading map…</div>;
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200">
+      <GoogleMap mapContainerStyle={MAP_CONTAINER_STYLE} center={locationCoords || DEFAULT_CENTER} zoom={locationCoords ? 16 : 12} onClick={onMapClick} options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: false, zoomControlOptions: { position: 3 } }}>
+        {locationCoords && <Marker position={locationCoords} animation={2} />}
+      </GoogleMap>
     </div>
   );
 }
 
-function Field({
-  label,
-  required,
-  type = 'text',
-  placeholder,
-  value,
-  onChange,
-}: {
-  label: string;
-  required?: boolean;
-  type?: string;
-  placeholder?: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
+function LocationFallback({ reason, locationCoords, manualCoordinates, onManualCoordinateChange }: { reason: string; locationCoords: Coordinates | null; manualCoordinates: { latitude: string; longitude: string }; onManualCoordinateChange: (axis: 'latitude' | 'longitude', value: string) => void }) {
   return (
-    <div>
-      <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-        {label} {required && <span className="text-rose-500">*</span>}
-      </label>
-      <input
-        required={required}
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all text-slate-900 text-sm"
-      />
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-5" role="alert">
+      <div className="flex gap-3"><AlertTriangle className="mt-0.5 w-5 h-5 shrink-0 text-amber-800" aria-hidden="true" /><div><p className="font-bold text-amber-950">Map unavailable</p><p className="mt-1 text-sm leading-6 text-amber-900">{reason} You can continue by entering valid coordinates from a trusted map source or use your current location.</p></div></div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <Field label="Latitude" name="delivery-latitude" type="number" inputMode="decimal" step="any" value={manualCoordinates.latitude} onChange={(value) => onManualCoordinateChange('latitude', value)} />
+        <Field label="Longitude" name="delivery-longitude" type="number" inputMode="decimal" step="any" value={manualCoordinates.longitude} onChange={(value) => onManualCoordinateChange('longitude', value)} />
+      </div>
+      {!locationCoords && <p className="mt-3 text-sm font-semibold text-amber-900">Both values are required before ordering.</p>}
+      <button type="button" onClick={() => window.location.reload()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-bold text-amber-950 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-700 focus:ring-offset-2"><RefreshCw className="w-4 h-4" aria-hidden="true" />Retry map</button>
+    </div>
+  );
+}
+
+function Field({ label, name, required, type = 'text', placeholder, value, onChange, autoComplete, inputMode, pattern, minLength, step, errorId }: { label: string; name: string; required?: boolean; type?: string; placeholder?: string; value: string; onChange: (value: string) => void; autoComplete?: string; inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode']; pattern?: string; minLength?: number; step?: string; errorId?: string }) {
+  const id = `checkout-${name}`;
+  return (
+    <div className="space-y-2">
+      <label htmlFor={id} className="block text-sm font-semibold text-slate-800">{label}{required && <span className="ml-1 text-rose-700" aria-label="required">*</span>}</label>
+      <input id={id} name={name} required={required} type={type} placeholder={placeholder} value={value} autoComplete={autoComplete} inputMode={inputMode} pattern={pattern} minLength={minLength} step={step} aria-invalid={Boolean(errorId)} aria-describedby={errorId} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600/30" />
     </div>
   );
 }

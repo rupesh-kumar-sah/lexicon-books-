@@ -71,12 +71,17 @@ export default function AuthModal() {
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="auth-modal-title"
             className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
           >
             <div className="p-8 bg-gradient-to-br from-blue-600 to-indigo-700 text-white relative">
               <button
+                type="button"
                 onClick={close}
-                className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/10 transition-colors"
+                aria-label="Close authentication dialog"
+                className="absolute top-4 right-4 p-2 rounded-lg hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-white"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -86,7 +91,7 @@ export default function AuthModal() {
                 </div>
                 <span className="text-xs font-bold uppercase tracking-widest opacity-80">BookSellNP</span>
               </div>
-              <h2 className="text-2xl font-bold tracking-tight">
+              <h2 id="auth-modal-title" className="text-2xl font-bold tracking-tight">
                 {forgotMode ? 'Reset your password' : mode === 'signin' ? 'Welcome back' : 'Create your account'}
               </h2>
               <p className="text-sm text-blue-100 mt-1">
@@ -94,16 +99,19 @@ export default function AuthModal() {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-8 space-y-5">
+            <form onSubmit={handleSubmit} className="p-8 space-y-5" aria-busy={submitting}>
               {forgotMode ? (
                 <>
                   <div>
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Email</label>
+                    <label htmlFor="auth-reset-email" className="text-sm font-semibold text-slate-800">Email address</label>
                     <div className="relative mt-1.5">
                       <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                       <input
+                        id="auth-reset-email"
+                        name="email"
                         required
                         type="email"
+                        autoComplete="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="reader@booksellnp.com"
@@ -112,7 +120,7 @@ export default function AuthModal() {
                     </div>
                   </div>
                   {resetMessage && <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">{resetMessage}</div>}
-                  {error && <div className="text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">{error}</div>}
+                  {error && <div role="alert" aria-live="polite" className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">{error}</div>}
                   <button
                     type="submit"
                     disabled={submitting}
@@ -127,11 +135,14 @@ export default function AuthModal() {
               <>
               {mode === 'signup' && (
                 <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Name</label>
+                  <label htmlFor="auth-name" className="text-sm font-semibold text-slate-800">Name</label>
                   <div className="relative mt-1.5">
                     <User className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                     <input
+                      id="auth-name"
+                      name="name"
                       required
+                      autoComplete="name"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="Jane Doe"
@@ -141,12 +152,15 @@ export default function AuthModal() {
                 </div>
               )}
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Email</label>
+                <label htmlFor="auth-email" className="text-sm font-semibold text-slate-800">Email address</label>
                 <div className="relative mt-1.5">
                   <Mail className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                   <input
+                    id="auth-email"
+                    name="email"
                     required
                     type="email"
+                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="reader@booksellnp.com"
@@ -155,12 +169,15 @@ export default function AuthModal() {
                 </div>
               </div>
               <div>
-                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">Password</label>
+                <label htmlFor="auth-password" className="text-sm font-semibold text-slate-800">Password</label>
                 <div className="relative mt-1.5">
                   <Lock className="w-4 h-4 absolute left-3.5 top-3.5 text-slate-400" />
                   <input
+                    id="auth-password"
+                    name="password"
                     required
                     type="password"
+                    autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="At least 6 characters"
@@ -177,7 +194,7 @@ export default function AuthModal() {
               )}
 
               {error && (
-                <div className="text-sm text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-4 py-3">
+                <div role="alert" aria-live="polite" className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3">
                   {error}
                 </div>
               )}

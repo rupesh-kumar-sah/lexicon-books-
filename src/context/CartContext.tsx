@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { CartItem, Book } from '../types';
 import { useToast } from './ToastContext';
+import { readStorage, removeStorage, writeStorage } from '../lib/storage';
 
 const STORAGE_KEY = 'booksellnp_cart';
 const LEGACY_KEY = 'lumina_cart';
@@ -17,24 +18,34 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+function isCartItem(value: unknown): value is CartItem {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.id === 'string' &&
+    typeof item.title === 'string' &&
+    typeof item.author === 'string' &&
+    typeof item.coverImage === 'string' &&
+    Number.isFinite(item.price) &&
+    Number.isFinite(item.quantity) &&
+    Number(item.quantity) > 0
+  );
+}
+
+function isCartItems(value: unknown): value is CartItem[] {
+  return Array.isArray(value) && value.every(isCartItem);
+}
+
 function loadInitial(): CartItem[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : [];
-    }
-    // migrate from old key
-    const legacy = localStorage.getItem(LEGACY_KEY);
-    if (legacy) {
-      localStorage.setItem(STORAGE_KEY, legacy);
-      localStorage.removeItem(LEGACY_KEY);
-      return JSON.parse(legacy);
-    }
-    return [];
-  } catch {
-    return [];
-  }
+  const current = readStorage<CartItem[] | null>(STORAGE_KEY, null, isCartItems);
+  if (current) return current;
+
+  const legacy = readStorage<CartItem[] | null>(LEGACY_KEY, null, isCartItems);
+  if (!legacy) return [];
+
+  writeStorage(STORAGE_KEY, legacy);
+  removeStorage(LEGACY_KEY);
+  return legacy;
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -42,7 +53,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+    writeStorage(STORAGE_KEY, items);
   }, [items]);
 
   const addToCart = (book: Book, quantity = 1) => {
@@ -75,7 +86,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) =>
       prev
         .map((i) => (i.id === bookId ? { ...i, quantity: Math.max(0, quantity) } : i))
-        .filter((i) => i.quantity > 0)
+        .filter((i) => i.quantity > 0),
     );
   };
 

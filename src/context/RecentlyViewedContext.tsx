@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import { readStorage, writeStorage } from '../lib/storage';
 
 const STORAGE_KEY = 'booksellnp_recently_viewed';
 const MAX_ITEMS = 12;
@@ -11,24 +12,15 @@ interface RecentlyViewedContextType {
 
 const RecentlyViewedContext = createContext<RecentlyViewedContextType | undefined>(undefined);
 
+function isBookIdList(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((id) => typeof id === 'string' && id.length > 0);
+}
+
 export function RecentlyViewedProvider({ children }: { children: ReactNode }) {
-  const [recentIds, setRecentIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return Array.isArray(parsed) ? parsed : [];
-      }
-      return [];
-    } catch {
-      return [];
-    }
-  });
+  const [recentIds, setRecentIds] = useState<string[]>(() => readStorage(STORAGE_KEY, [], isBookIdList));
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(recentIds));
-    } catch {}
+    writeStorage(STORAGE_KEY, recentIds);
   }, [recentIds]);
 
   const addRecent = useCallback((bookId: string) => {

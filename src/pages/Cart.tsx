@@ -1,11 +1,13 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useSiteSettings } from '../context/SiteSettingsContext';
 import { Trash2, Plus, Minus, ArrowRight, ShoppingBag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { navigateWithTransition } from '../lib/viewTransition';
 
 export default function Cart() {
   const { settings } = useSiteSettings();
+  const navigate = useNavigate();
   const { items, removeFromCart, updateQuantity, total } = useCart();
   
   const isFreeShipping = total >= settings.freeShippingThreshold;
@@ -123,7 +125,11 @@ export default function Cart() {
             
             <Link 
               to="/checkout"
-              className="w-full flex items-center justify-center space-x-3 bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20"
+              onClick={(event) => {
+                event.preventDefault();
+                navigateWithTransition(() => navigate('/checkout'));
+              }}
+              className="w-full flex items-center justify-center space-x-3 bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-700 transition-all active:scale-[0.98] shadow-lg shadow-blue-500/20 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
             >
               <span>Complete Purchase</span>
               <ArrowRight className="w-5 h-5" />

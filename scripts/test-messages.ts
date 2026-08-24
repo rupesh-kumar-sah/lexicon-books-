@@ -7,6 +7,7 @@ const suffix = crypto.randomBytes(6).toString('hex');
 const userId = `message-test-admin-${suffix}`;
 const email = `message-test-admin-${suffix}@example.test`;
 const password = 'MessageTestPassword123!';
+const windowsChrome = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36';
 let messageId = '';
 
 async function json(response: Response) {
@@ -21,11 +22,11 @@ try {
 
   const login = await json(await fetch(`${baseUrl}/api/auth/login`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password, latitude: 27.7172, longitude: 85.324, device: 'Dell Laptop Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36' }),
+    headers: { 'content-type': 'application/json', 'user-agent': windowsChrome },
+    body: JSON.stringify({ email, password, latitude: 27.7172, longitude: 85.324, device: windowsChrome }),
   }));
   if (login.status !== 200 || !login.body.token) throw new Error(`Admin login failed: ${login.status}`);
-  const headers = { 'content-type': 'application/json', authorization: `Bearer ${login.body.token}` };
+  const headers = { 'content-type': 'application/json', 'user-agent': windowsChrome, authorization: `Bearer ${login.body.token}` };
 
   const created = await json(await fetch(`${baseUrl}/api/messages`, {
     method: 'POST',
