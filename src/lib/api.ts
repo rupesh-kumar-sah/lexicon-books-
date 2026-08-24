@@ -15,7 +15,7 @@ export function setToken(token: string | null) {
 
 const BASE_URL = import.meta.env.VITE_API_URL || '';
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}, allowRefresh = true): Promise<T> {
   const cacheKey = `${options.method || 'GET'}:${path}:${options.body || ''}`;
   
   // Return cached data if available for GET requests
@@ -33,7 +33,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers, credentials: 'include' });
+  if (res.status === 401 && allowRefresh && getToken() && !path.startsWith('/api/auth/')) {
+    const refreshResponse = await fetch(`${BASE_URL}/api/auth/refresh`, { method: 'POST', credentials: 'include' });
+    if (refreshResponse.ok) {
+      const refreshed = await refreshResponse.json() as { token?: string };
+      if (refreshed.token) {
+        setToken(refreshed.token);
+        return request<T>(path, options, false);
+      }
+    }
+    setToken(null);
+  }
   const text = await res.text();
   let data: any = null;
   if (text) {
@@ -61,12 +72,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // Auth
 export const authApi = {
   signup: (input: { email: string; password: string; displayName: string }) =>
-    request<{ token: string; user: AuthUser }>('/api/auth/signup', {
+    request<{ token: string; refreshToken?: string; user: AuthUser }>('/api/auth/signup', {
       method: 'POST',
       body: JSON.stringify(input),
     }),
   login: (input: { email: string; password: string; latitude?: number; longitude?: number; device?: string }) =>
-    request<{ token: string; user: AuthUser }>('/api/auth/login', {
+    request<{ token: string; refreshToken?: string; user: AuthUser }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(input),
     }),

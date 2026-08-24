@@ -85,6 +85,24 @@ services:
       - key: PUBLIC_BASE_URL
         sync: false
 
+      - key: ADMIN_ALLOWED_COUNTRY
+        sync: false
+
+      - key: ADMIN_ALLOWED_LATITUDE
+        sync: false
+
+      - key: ADMIN_ALLOWED_LONGITUDE
+        sync: false
+
+      - key: ADMIN_ALLOWED_RADIUS_KM
+        sync: false
+
+      - key: GEOIP_PROVIDER_URL
+        sync: false
+
+      - key: GEOIP_PROVIDER_TOKEN
+        sync: false
+
       - key: FRONTEND_URL
         sync: false
 

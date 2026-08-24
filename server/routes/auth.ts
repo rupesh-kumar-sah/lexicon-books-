@@ -5,12 +5,18 @@ import { query } from '../db';
 import {
   hashPassword,
   verifyPassword,
-  createSession,
+  createSessionPair,
   deleteSession,
   newId,
   requireAuth,
+  refreshTokenFromRequest,
+  rotateRefreshToken,
+  revokeRefreshToken,
+  setRefreshCookie,
+  clearRefreshCookie,
 } from '../auth';
 import { sendPasswordResetEmail } from '../integrations/google';
+import { enforceAdminGeoIp } from '../middleware/adminGeoIp';
 
 const router = Router();
 
@@ -99,7 +105,8 @@ router.get('/google/callback', async (req, res) => {
       );
       user = { id, email, display_name: profile.data.name || email.split('@')[0], photo_url: profile.data.picture || null, role: 'user', created_at: new Date().toISOString() };
     }
-    const token = await createSession(user.id);
+    const { token, refreshToken } = await createSessionPair(user.id);
+    setRefreshCookie(res, refreshToken);
     res.redirect(`/#google_token=${encodeURIComponent(token)}`);
   } catch (error) {
     console.error('google sign-in error', error);
@@ -214,7 +221,8 @@ router.post('/signup', async (req, res) => {
       [id, email.toLowerCase(), hash, displayName, photoURL, role]
     );
 
-    const token = await createSession(id);
+    const { token, refreshToken } = await createSessionPair(id);
+    setRefreshCookie(res, refreshToken);
     res.json({
       token,
       user: { id, email: email.toLowerCase(), displayName, photoURL, role, createdAt: new Date().toISOString() },
@@ -288,8 +296,9 @@ router.post('/login', async (req, res) => {
           });
         }
 
-        if (!latitude || !longitude) {
-          return res.status(403).json({ error: 'Location is required to login as admin' });
+        const geoIpResult = await enforceAdminGeoIp(req);
+        if (!geoIpResult.allowed) {
+          return res.status(403).json({ error: 'Admin login is outside the allowed network or location policy' });
         }
 
         const ua = String(device || '').toLowerCase();
@@ -302,7 +311,8 @@ router.post('/login', async (req, res) => {
       }
     }
 
-    const token = await createSession(u.id);
+    const { token, refreshToken } = await createSessionPair(u.id);
+    setRefreshCookie(res, refreshToken);
     res.json({
       token,
       user: {
@@ -320,11 +330,25 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.post('/logout', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (auth?.startsWith('Bearer ')) {
-    await deleteSession(auth.slice(7));
+router.post('/refresh', async (req, res) => {
+  const refreshToken = refreshTokenFromRequest(req);
+  if (!refreshToken) return res.status(401).json({ error: 'Refresh token required' });
+  try {
+    const tokens = await rotateRefreshToken(refreshToken);
+    setRefreshCookie(res, tokens.refreshToken);
+    return res.json({ token: tokens.token });
+  } catch {
+    clearRefreshCookie(res);
+    return res.status(401).json({ error: 'Refresh session expired or revoked. Please sign in again.' });
   }
+});
+
+router.post('/logout', async (req, res) => {
+  const refreshToken = refreshTokenFromRequest(req);
+  if (refreshToken) await revokeRefreshToken(refreshToken);
+  const auth = req.headers.authorization;
+  if (auth?.startsWith('Bearer ')) await deleteSession(auth.slice(7));
+  clearRefreshCookie(res);
   res.json({ ok: true });
 });
 
