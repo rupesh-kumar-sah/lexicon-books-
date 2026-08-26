@@ -74,7 +74,7 @@ export default function AuthModal() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="auth-modal-title"
-            className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden"
+            className="relative max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-3xl bg-white shadow-2xl"
           >
             <div className="p-8 bg-gradient-to-br from-blue-600 to-indigo-700 text-white relative">
               <button
