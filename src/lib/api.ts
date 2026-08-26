@@ -202,6 +202,7 @@ export const orderApi = {
       country: string;
       deliveryArea: 'ktm' | 'outside';
       locationCoords: { lat: number; lng: number };
+      whatsappOrderUpdates?: boolean;
     };
     idempotencyKey: string;
   }) =>
@@ -216,6 +217,11 @@ export const orderApi = {
   mine: () => request<{ orders: Order[] }>('/api/orders/mine'),
   get: (id: string) => request<{ order: Order }>(`/api/orders/${id}`),
   cancel: (id: string) => request<{ ok: true }>(`/api/orders/${id}/cancel`, { method: 'POST' }),
+  optOutWhatsapp: (phone: string) =>
+    request<{ ok: true; phone: string }>('/api/orders/whatsapp/opt-out', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    }),
 };
 
 // Admin

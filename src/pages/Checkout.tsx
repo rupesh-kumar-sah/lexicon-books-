@@ -36,6 +36,7 @@ export default function Checkout() {
     zip: '',
     country: 'Nepal',
     locationCoords: null as Coordinates | null,
+    whatsappOrderUpdates: false,
   });
   const [manualCoordinates, setManualCoordinates] = useState({ latitude: '', longitude: '' });
   const [isProcessing, setIsProcessing] = useState(false);
@@ -138,6 +139,7 @@ export default function Checkout() {
           country: formData.country,
           deliveryArea: shippingLocation,
           locationCoords: formData.locationCoords,
+          whatsappOrderUpdates: formData.whatsappOrderUpdates,
         },
         idempotencyKey: idempotencyKeyRef.current,
       });
@@ -203,6 +205,16 @@ export default function Checkout() {
                 <Field label="City or town" name="city" autoComplete="address-level2" required placeholder="Lalitpur" value={formData.city} errorId={error ? 'checkout-error' : undefined} onChange={(value) => setFormData((current) => ({ ...current, city: value }))} />
                 <Field label="ZIP or area code" name="zip" autoComplete="postal-code" inputMode="numeric" required placeholder="44600" value={formData.zip} errorId={error ? 'checkout-error' : undefined} onChange={(value) => setFormData((current) => ({ ...current, zip: value }))} />
               </div>
+
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={formData.whatsappOrderUpdates}
+                  onChange={(event) => setFormData((current) => ({ ...current, whatsappOrderUpdates: event.target.checked }))}
+                  className="mt-0.5 size-4 rounded border-slate-400 text-blue-700 focus:ring-2 focus:ring-blue-600"
+                />
+                <span><strong className="block text-slate-900">Send WhatsApp order updates to this number</strong><span className="mt-1 block leading-5">Optional transactional messages for order received, preparation, dispatch, delivery, or cancellation. You can disable future updates later from Your Account.</span></span>
+              </label>
             </div>
           </section>
 

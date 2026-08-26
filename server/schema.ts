@@ -154,6 +154,35 @@ const STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS orders_created_at_idx ON orders (created_at DESC)`,
   `ALTER TABLE orders ADD COLUMN IF NOT EXISTS idempotency_key TEXT`,
   `CREATE UNIQUE INDEX IF NOT EXISTS orders_user_idempotency_key_idx ON orders (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL`,
+
+  `CREATE TABLE IF NOT EXISTS whatsapp_preferences (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    phone TEXT NOT NULL,
+    transactional_opt_in BOOLEAN NOT NULL DEFAULT FALSE,
+    opted_in_at TIMESTAMPTZ,
+    opted_out_at TIMESTAMPTZ,
+    consent_version TEXT NOT NULL DEFAULT 'checkout-v1',
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, phone)
+  )`,
+  `CREATE INDEX IF NOT EXISTS whatsapp_preferences_phone_idx ON whatsapp_preferences (phone)`,
+
+  `CREATE TABLE IF NOT EXISTS whatsapp_notifications (
+    id TEXT PRIMARY KEY,
+    order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    notification_kind TEXT NOT NULL,
+    recipient_phone TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'queued',
+    provider_message_id TEXT,
+    error_message TEXT,
+    sent_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (order_id, notification_kind, recipient_phone)
+  )`,
+  `CREATE INDEX IF NOT EXISTS whatsapp_notifications_order_idx ON whatsapp_notifications (order_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS whatsapp_notifications_status_idx ON whatsapp_notifications (status, created_at DESC)`,
+
   `CREATE INDEX IF NOT EXISTS books_price_idx ON books (price)`,
   `CREATE INDEX IF NOT EXISTS books_genre_trgm_idx ON books (genre)`,
   `CREATE INDEX IF NOT EXISTS books_genre_idx ON books (genre)`,

@@ -3,6 +3,7 @@ import { adminQuery, pool } from '../db';
 import { requireAdmin } from '../auth';
 import { getCache, setCache, clearCache } from '../cache';
 import { queueFullAppSnapshot } from '../integrations/google';
+import { notifyOpenWaOrderStatus } from '../integrations/openwa';
 
 const router = Router();
 
@@ -196,7 +197,12 @@ router.patch('/orders/:id/status', requireAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const existing = await client.query<any>('SELECT id, status, items_json FROM orders WHERE id = $1 FOR UPDATE', [req.params.id]);
+    const existing = await client.query<any>(
+      `SELECT id, user_id, status, items_json, customer_email, customer_name, customer_phone,
+              shipping_address, location_coords, subtotal, shipping, total, created_at
+         FROM orders WHERE id = $1 FOR UPDATE`,
+      [req.params.id],
+    );
     if (existing.rows.length === 0) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Order not found' });
@@ -224,6 +230,21 @@ router.patch('/orders/:id/status', requireAdmin, async (req, res) => {
 
     const result = await client.query('UPDATE orders SET status = $1 WHERE id = $2 RETURNING id, status', [status, req.params.id]);
     await client.query('COMMIT');
+    void notifyOpenWaOrderStatus({
+      id: order.id,
+      userId: order.user_id,
+      customerEmail: order.customer_email,
+      customerName: order.customer_name,
+      customerPhone: order.customer_phone,
+      shippingAddress: order.shipping_address,
+      locationCoords: order.location_coords,
+      items: order.items_json || [],
+      subtotal: Number(order.subtotal),
+      shipping: Number(order.shipping),
+      total: Number(order.total),
+      status,
+      createdAt: order.created_at,
+    }, status);
     await clearCache('admin:stats');
     await clearCache('books:');
     await clearCache('genres');

@@ -16,6 +16,7 @@ import adminRoutes from './server/routes/admin';
 import aiRoutes from './server/routes/ai';
 import messageRoutes from './server/routes/messages';
 import { googleIntegrationStatus, syncFullAppSnapshot } from './server/integrations/google';
+import { openWaIntegrationStatus } from './server/integrations/openwa';
 import { seedIfEmpty } from './server/seed';
 import { ensureSchema } from './server/schema';
 import { query } from './server/db';
@@ -196,7 +197,14 @@ async function startServer() {
   });
 
   app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString(), integrations: googleIntegrationStatus() });
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      integrations: {
+        ...googleIntegrationStatus(),
+        openWa: openWaIntegrationStatus(),
+      },
+    });
   });
 
   app.use('/api/auth', authRoutes);

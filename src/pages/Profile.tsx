@@ -40,6 +40,7 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ displayName: '', photoURL: '' });
   const [saving, setSaving] = useState(false);
+  const [whatsappSaving, setWhatsappSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -81,6 +82,24 @@ export default function Profile() {
       toast.error(err.message || 'Failed to update profile');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const whatsappPhone = useMemo(
+    () => orders.find((order) => typeof order.customerPhone === 'string' && /^9\d{9}$/.test(order.customerPhone))?.customerPhone || null,
+    [orders],
+  );
+
+  const handleWhatsAppOptOut = async () => {
+    if (!whatsappPhone) return;
+    setWhatsappSaving(true);
+    try {
+      await orderApi.optOutWhatsapp(whatsappPhone);
+      toast.success('WhatsApp order updates have been disabled for this number.');
+    } catch (err: any) {
+      toast.error(err.message || 'Could not update WhatsApp preferences.');
+    } finally {
+      setWhatsappSaving(false);
     }
   };
 
@@ -220,6 +239,20 @@ export default function Profile() {
                 </div>
               )}
             </div>
+
+            {whatsappPhone && (
+              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                <h3 className="font-bold text-base text-slate-900">WhatsApp order updates</h3>
+                <p className="mt-2 text-xs leading-5 text-slate-500">You can stop future transactional order messages for your most recently used delivery number at any time. You can opt in again during a later checkout.</p>
+                <button
+                  onClick={handleWhatsAppOptOut}
+                  disabled={whatsappSaving}
+                  className="mt-4 w-full rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {whatsappSaving ? 'Disabling updates…' : 'Disable WhatsApp updates'}
+                </button>
+              </div>
+            )}
 
             <Link
               to="/wishlist"

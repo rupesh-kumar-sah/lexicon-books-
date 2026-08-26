@@ -43,6 +43,23 @@ services:
       - key: GROQ_API_KEY
         sync: false
 
+      # OpenWA runs as a separate, always-on gateway. Keep disabled until the
+      # gateway session, API key, and verified sender are configured in Render.
+      - key: OPENWA_ENABLED
+        value: "false"
+
+      - key: OPENWA_BASE_URL
+        sync: false
+
+      - key: OPENWA_API_KEY
+        sync: false
+
+      - key: OPENWA_SESSION_ID
+        sync: false
+
+      - key: OPENWA_ADMIN_RECIPIENT
+        sync: false
+
       - key: GOOGLE_MAPS_API_KEY
         sync: false
 

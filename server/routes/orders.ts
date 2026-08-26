@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { pool, query } from '../db';
 import { newId, requireAuth } from '../auth';
 import { notifyOrderCreated, queueFullAppSnapshot } from '../integrations/google';
+import { notifyOpenWaOrderCreated, notifyOpenWaOrderStatus } from '../integrations/openwa';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ type ValidatedCustomer = {
   country: string;
   deliveryArea: DeliveryArea;
   locationCoords: Coordinates;
+  whatsappOrderUpdates: boolean;
 };
 
 type RequestedLine = { id: string; quantity: number };
@@ -84,13 +86,14 @@ function validateCustomer(value: unknown, authenticatedEmail: string): Validated
   const country = cleanText(customer.country ?? 'Nepal', MAX_COUNTRY_LENGTH);
   const deliveryArea = customer.deliveryArea;
   const locationCoords = validCoordinates(customer.locationCoords);
+  const whatsappOrderUpdates = customer.whatsappOrderUpdates === true;
 
   if (!firstName || !address || !city || !zip || !country) return { error: 'Complete your name, address, city, postal code, and country before ordering.' };
   if (!/^9\d{9}$/.test(phone)) return { error: 'Enter a valid 10-digit Nepali mobile number beginning with 9.' };
   if (deliveryArea !== 'ktm' && deliveryArea !== 'outside') return { error: 'Select a delivery area before ordering.' };
   if (!locationCoords) return { error: 'Provide a valid delivery location before ordering.' };
 
-  return { email: authenticatedEmail.toLowerCase(), firstName, lastName, phone, address, city, zip, country, deliveryArea, locationCoords };
+  return { email: authenticatedEmail.toLowerCase(), firstName, lastName, phone, address, city, zip, country, deliveryArea, locationCoords, whatsappOrderUpdates };
 }
 
 function isIdempotencyKey(value: unknown): value is string {
@@ -189,6 +192,17 @@ router.post('/', requireAuth, async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9::jsonb, $10, $11, $12, 'pending')`,
       [id, req.user!.id, idempotencyKey, customer.email, customerName, customer.phone, shippingAddress, JSON.stringify(customer.locationCoords), JSON.stringify(canonicalItems), subtotal, shipping, total],
     );
+    await client.query(
+      `INSERT INTO whatsapp_preferences (user_id, phone, transactional_opt_in, opted_in_at, opted_out_at, consent_version, updated_at)
+       VALUES ($1, $2, $3, CASE WHEN $3 THEN NOW() ELSE NULL END, CASE WHEN $3 THEN NULL ELSE NOW() END, 'checkout-v1', NOW())
+       ON CONFLICT (user_id, phone) DO UPDATE SET
+         transactional_opt_in = EXCLUDED.transactional_opt_in,
+         opted_in_at = CASE WHEN EXCLUDED.transactional_opt_in THEN NOW() ELSE whatsapp_preferences.opted_in_at END,
+         opted_out_at = CASE WHEN EXCLUDED.transactional_opt_in THEN NULL ELSE NOW() END,
+         consent_version = EXCLUDED.consent_version,
+         updated_at = NOW()`,
+      [req.user!.id, customer.phone.replace(/\s/g, ''), customer.whatsappOrderUpdates],
+    );
 
     await client.query('COMMIT');
     queueFullAppSnapshot();
@@ -205,6 +219,21 @@ router.post('/', requireAuth, async (req, res) => {
       total,
       status: 'pending',
       createdAt: new Date(),
+    });
+    void notifyOpenWaOrderCreated({
+      id,
+      customerEmail: customer.email,
+      customerName,
+      customerPhone: customer.phone,
+      shippingAddress,
+      locationCoords: customer.locationCoords,
+      items: canonicalItems,
+      subtotal,
+      shipping,
+      total,
+      status: 'pending',
+      createdAt: new Date(),
+      userId: req.user!.id,
     });
     return res.status(201).json({ orderId: id, subtotal, shipping, total });
   } catch (error: any) {
@@ -252,6 +281,33 @@ router.get('/mine', requireAuth, async (req, res) => {
   }
 });
 
+router.post('/whatsapp/opt-out', requireAuth, async (req, res) => {
+  const phone = typeof req.body?.phone === 'string' ? req.body.phone.replace(/\s/g, '') : '';
+  if (!/^9\d{9}$/.test(phone)) return res.status(400).json({ error: 'Enter a valid Nepali mobile number.' });
+
+  try {
+    const ownership = await query(
+      'SELECT 1 FROM orders WHERE user_id = $1 AND customer_phone = $2 LIMIT 1',
+      [req.user!.id, phone],
+    );
+    if (ownership.rows.length === 0) return res.status(404).json({ error: 'No order was found for that phone number.' });
+
+    await query(
+      `INSERT INTO whatsapp_preferences (user_id, phone, transactional_opt_in, opted_out_at, consent_version, updated_at)
+       VALUES ($1, $2, FALSE, NOW(), 'checkout-v1', NOW())
+       ON CONFLICT (user_id, phone) DO UPDATE SET
+         transactional_opt_in = FALSE,
+         opted_out_at = NOW(),
+         updated_at = NOW()`,
+      [req.user!.id, phone],
+    );
+    return res.json({ ok: true, phone });
+  } catch (error) {
+    console.error('WhatsApp opt-out error', error);
+    return res.status(500).json({ error: 'Could not update WhatsApp preferences. Please try again.' });
+  }
+});
+
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const result = await query<any>(
@@ -292,7 +348,9 @@ router.post('/:id/cancel', requireAuth, async (req, res) => {
   try {
     await client.query('BEGIN');
     const result = await client.query<any>(
-      'SELECT user_id, status, items_json FROM orders WHERE id = $1 FOR UPDATE',
+      `SELECT id, user_id, status, items_json, customer_email, customer_name, customer_phone,
+              shipping_address, location_coords, subtotal, shipping, total, created_at
+         FROM orders WHERE id = $1 FOR UPDATE`,
       [req.params.id]
     );
     if (result.rows.length === 0) {
@@ -315,6 +373,21 @@ router.post('/:id/cancel', requireAuth, async (req, res) => {
     await client.query(`UPDATE orders SET status = 'cancelled' WHERE id = $1`, [req.params.id]);
     await client.query('COMMIT');
     queueFullAppSnapshot();
+    void notifyOpenWaOrderStatus({
+      id: order.id,
+      userId: order.user_id,
+      customerEmail: order.customer_email,
+      customerName: order.customer_name,
+      customerPhone: order.customer_phone,
+      shippingAddress: order.shipping_address,
+      locationCoords: order.location_coords,
+      items: order.items_json || [],
+      subtotal: Number(order.subtotal),
+      shipping: Number(order.shipping),
+      total: Number(order.total),
+      status: 'cancelled',
+      createdAt: order.created_at,
+    }, 'cancelled');
     return res.json({ ok: true });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
