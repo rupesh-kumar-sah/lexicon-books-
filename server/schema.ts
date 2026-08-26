@@ -152,6 +152,8 @@ const STATEMENTS: string[] = [
   `CREATE INDEX IF NOT EXISTS orders_user_created_at_idx ON orders (user_id, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS orders_status_created_at_idx ON orders (status, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS orders_created_at_idx ON orders (created_at DESC)`,
+  `ALTER TABLE orders ADD COLUMN IF NOT EXISTS idempotency_key TEXT`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS orders_user_idempotency_key_idx ON orders (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS books_price_idx ON books (price)`,
   `CREATE INDEX IF NOT EXISTS books_genre_trgm_idx ON books (genre)`,
   `CREATE INDEX IF NOT EXISTS books_genre_idx ON books (genre)`,

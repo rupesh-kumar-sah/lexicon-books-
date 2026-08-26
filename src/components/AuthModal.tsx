@@ -115,6 +115,7 @@ export default function AuthModal() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="reader@booksellnp.com"
+                        maxLength={254}
                         className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                       />
                     </div>
@@ -146,6 +147,7 @@ export default function AuthModal() {
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="Jane Doe"
+                      maxLength={120}
                       className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                     />
                   </div>
@@ -180,8 +182,9 @@ export default function AuthModal() {
                     autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="At least 6 characters"
-                    minLength={6}
+                    placeholder="8 to 128 characters"
+                    minLength={8}
+                    maxLength={128}
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                   />
                 </div>

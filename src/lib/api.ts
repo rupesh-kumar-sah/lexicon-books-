@@ -3,6 +3,7 @@ import type { Book, Review, AuthUser, Order, AdminOrder, AdminStats, GenreInfo, 
 const TOKEN_KEY = 'booksellnp_token';
 const CLIENT_CACHE: Record<string, { data: any; timestamp: number }> = {};
 const CACHE_TTL = 300000; // 5 minutes in ms
+const REQUEST_TIMEOUT_MS = 20_000;
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -14,6 +15,23 @@ export function setToken(token: string | null) {
 }
 
 const BASE_URL = import.meta.env.VITE_API_URL || '';
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = REQUEST_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const sourceSignal = init.signal;
+  const forwardAbort = () => controller.abort();
+  sourceSignal?.addEventListener('abort', forwardAbort, { once: true });
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('The server took too long to respond. Please check your connection and try again.');
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    sourceSignal?.removeEventListener('abort', forwardAbort);
+  }
+}
 
 async function request<T>(path: string, options: RequestInit = {}, allowRefresh = true): Promise<T> {
   const cacheKey = `${options.method || 'GET'}:${path}:${options.body || ''}`;
@@ -33,9 +51,9 @@ async function request<T>(path: string, options: RequestInit = {}, allowRefresh 
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers, credentials: 'include' });
+  const res = await fetchWithTimeout(`${BASE_URL}${path}`, { ...options, headers, credentials: 'include' });
   if (res.status === 401 && allowRefresh && getToken() && !path.startsWith('/api/auth/')) {
-    const refreshResponse = await fetch(`${BASE_URL}/api/auth/refresh`, { method: 'POST', credentials: 'include' });
+    const refreshResponse = await fetchWithTimeout(`${BASE_URL}/api/auth/refresh`, { method: 'POST', credentials: 'include' });
     if (refreshResponse.ok) {
       const refreshed = await refreshResponse.json() as { token?: string };
       if (refreshed.token) {
@@ -172,22 +190,28 @@ export const wishlistApi = {
 // Orders
 export const orderApi = {
   create: (input: {
-    items: { id: string; title: string; author: string; coverImage: string; price: number; quantity: number }[];
+    items: { id: string; quantity: number }[];
     customer: {
       email: string;
       firstName: string;
       lastName: string;
       phone: string;
       address: string;
-      city?: string;
-      zip?: string;
-      country?: string;
-      locationCoords?: { lat: number; lng: number } | null;
+      city: string;
+      zip: string;
+      country: string;
+      deliveryArea: 'ktm' | 'outside';
+      locationCoords: { lat: number; lng: number };
     };
+    idempotencyKey: string;
   }) =>
-    request<{ orderId: string; subtotal: number; shipping: number; total: number }>(
+    request<{ orderId: string; subtotal: number; shipping: number; total: number; repeated?: boolean }>(
       '/api/orders',
-      { method: 'POST', body: JSON.stringify(input) }
+      {
+        method: 'POST',
+        headers: { 'Idempotency-Key': input.idempotencyKey },
+        body: JSON.stringify({ items: input.items, customer: input.customer }),
+      }
     ),
   mine: () => request<{ orders: Order[] }>('/api/orders/mine'),
   get: (id: string) => request<{ order: Order }>(`/api/orders/${id}`),

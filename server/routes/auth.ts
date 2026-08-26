@@ -24,11 +24,17 @@ const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_MINUTES = 15;
 const GOOGLE_SCOPES = ['openid', 'email', 'profile'];
 const RESET_TTL_MINUTES = Math.max(10, Math.min(120, Number(process.env.PASSWORD_RESET_TTL_MINUTES || 30)));
+const MAX_EMAIL_LENGTH = 254;
+const MAX_PASSWORD_LENGTH = 128;
+const MAX_DISPLAY_NAME_LENGTH = 120;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const resetRequestWindows = new Map<string, { count: number; resetAt: number }>();
 const resetCompletionWindows = new Map<string, { count: number; resetAt: number }>();
 
 function normalizeEmail(value: unknown) {
-  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (typeof value !== 'string') return '';
+  const email = value.trim().toLowerCase();
+  return email.length <= MAX_EMAIL_LENGTH && EMAIL_PATTERN.test(email) ? email : '';
 }
 
 function hashResetToken(token: string) {
@@ -161,8 +167,8 @@ router.post('/password-reset/complete', async (req, res) => {
   const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   const completionKey = `${req.ip || 'unknown'}:${email || 'invalid'}`;
-  if (!email || !/^\d{8}$/.test(code) || password.length < 8) {
-    return res.status(400).json({ error: 'Enter your email, the 8-digit reset code, and a password of at least 8 characters.' });
+  if (!email || !/^\d{8}$/.test(code) || password.length < 8 || password.length > MAX_PASSWORD_LENGTH) {
+    return res.status(400).json({ error: `Enter your email, the 8-digit reset code, and a password from 8 to ${MAX_PASSWORD_LENGTH} characters.` });
   }
   if (!canCompleteReset(completionKey)) {
     return res.status(429).json({ error: 'Too many reset attempts. Please request a new code and try again later.' });
@@ -207,22 +213,28 @@ router.post('/password-reset/complete', async (req, res) => {
 
 router.post('/signup', async (req, res) => {
   try {
-    const { email, password, displayName } = req.body || {};
+    const raw = req.body || {};
+    const email = normalizeEmail(raw.email);
+    const password = typeof raw.password === 'string' ? raw.password : '';
+    const displayName = typeof raw.displayName === 'string' ? raw.displayName.trim() : '';
     if (!email || !password || !displayName) {
-      return res.status(400).json({ error: 'email, password, and displayName are required' });
+      return res.status(400).json({ error: 'Enter a valid email, password, and display name.' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (password.length < 8 || password.length > MAX_PASSWORD_LENGTH) {
+      return res.status(400).json({ error: `Password must be from 8 to ${MAX_PASSWORD_LENGTH} characters.` });
+    }
+    if (displayName.length > MAX_DISPLAY_NAME_LENGTH) {
+      return res.status(400).json({ error: `Display name must be ${MAX_DISPLAY_NAME_LENGTH} characters or fewer.` });
     }
 
-    const existing = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    const existing = await query('SELECT id FROM users WHERE email = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'An account with that email already exists' });
     }
 
     const countRes = await query<{ count: string }>('SELECT COUNT(*)::text AS count FROM users');
     const isFirstUser = countRes.rows[0].count === '0';
-    const isSpecialAdmin = email.toLowerCase() === (process.env.ADMIN_EMAIL || '').toLowerCase();
+    const isSpecialAdmin = email === (process.env.ADMIN_EMAIL || '').toLowerCase();
     const role = (isFirstUser || isSpecialAdmin) ? 'admin' : 'user';
 
     const id = newId();
@@ -232,7 +244,7 @@ router.post('/signup', async (req, res) => {
     await query(
       `INSERT INTO users (id, email, password_hash, display_name, photo_url, role)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [id, email.toLowerCase(), hash, displayName, photoURL, role]
+      [id, email, hash, displayName, photoURL, role]
     );
 
     const { token, refreshToken } = await createSessionPair(id);
@@ -240,7 +252,7 @@ router.post('/signup', async (req, res) => {
     setRefreshCookie(res, refreshToken);
     res.json({
       token,
-      user: { id, email: email.toLowerCase(), displayName, photoURL, role, createdAt: new Date().toISOString() },
+      user: { id, email, displayName, photoURL, role, createdAt: new Date().toISOString() },
     });
   } catch (e: any) {
     console.error('signup error', e);
@@ -252,12 +264,12 @@ router.post('/login', async (req, res) => {
   try {
     const rawEmail = req.body?.email;
     const rawPassword = req.body?.password;
-    const email = typeof rawEmail === 'string' ? rawEmail.trim() : '';
+    const email = normalizeEmail(rawEmail);
     const password = typeof rawPassword === 'string' ? rawPassword : '';
     if (!email || !password) {
       return res.status(400).json({ error: 'email and password are required' });
     }
-    if (email.length > 50 || password.length > 32) {
+    if (password.length > MAX_PASSWORD_LENGTH) {
       return res.status(400).json({ error: 'Invalid email or password' });
     }
     const result = await query<any>(
@@ -370,12 +382,16 @@ router.patch('/profile', requireAuth, async (req, res) => {
     const updates: string[] = [];
     const params: any[] = [];
 
-    if (displayName) {
+    if (displayName !== undefined) {
+      if (typeof displayName !== 'string' || !displayName.trim() || displayName.trim().length > MAX_DISPLAY_NAME_LENGTH) {
+        return res.status(400).json({ error: `Display name must be from 1 to ${MAX_DISPLAY_NAME_LENGTH} characters.` });
+      }
       params.push(displayName.trim());
       updates.push(`display_name = $${params.length}`);
     }
     if (photoURL !== undefined) {
-      params.push(photoURL);
+      if (typeof photoURL !== 'string' || photoURL.length > 2000) return res.status(400).json({ error: 'Photo URL is invalid or too long.' });
+      params.push(photoURL.trim());
       updates.push(`photo_url = $${params.length}`);
     }
 

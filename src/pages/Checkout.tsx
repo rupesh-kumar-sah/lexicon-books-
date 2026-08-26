@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, InputHTMLAttributes } from 'react';
 import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { useCart } from '../context/CartContext';
@@ -12,6 +12,11 @@ const MAP_CONTAINER_STYLE = { width: '100%', height: '300px' };
 const DEFAULT_CENTER = { lat: 27.7172, lng: 85.3240 };
 type Coordinates = { lat: number; lng: number };
 type ShippingLocation = 'ktm' | 'outside';
+
+function createCheckoutIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
 
 export default function Checkout() {
   const { settings } = useSiteSettings();
@@ -36,6 +41,7 @@ export default function Checkout() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGeolocating, setIsGeolocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const idempotencyKeyRef = useRef(createCheckoutIdempotencyKey());
 
   useEffect(() => {
     if (!user) return;
@@ -120,20 +126,20 @@ export default function Checkout() {
     setIsProcessing(true);
     try {
       const { orderId } = await orderApi.create({
-        items: items.map((item) => ({
-          id: item.id,
-          title: item.title,
-          author: item.author,
-          coverImage: item.coverImage,
-          price: item.price,
-          quantity: item.quantity,
-        })),
+        items: items.map((item) => ({ id: item.id, quantity: item.quantity })),
         customer: {
-          ...formData,
           email: user.email,
           firstName: formData.firstName || user.displayName.split(' ')[0] || '',
           lastName: formData.lastName || user.displayName.split(' ').slice(1).join(' ') || '',
+          phone: formData.phone,
+          address: formData.address,
+          city: formData.city,
+          zip: formData.zip,
+          country: formData.country,
+          deliveryArea: shippingLocation,
+          locationCoords: formData.locationCoords,
         },
+        idempotencyKey: idempotencyKeyRef.current,
       });
       clearCart();
       navigate(`/order-success?id=${orderId}`);

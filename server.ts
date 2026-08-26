@@ -12,7 +12,6 @@ import passkeyRoutes from './server/routes/passkeys';
 import bookRoutes from './server/routes/books';
 import wishlistRoutes from './server/routes/wishlist';
 import orderRoutes from './server/routes/orders';
-import sqlRoutes from './server/routes/sql';
 import adminRoutes from './server/routes/admin';
 import aiRoutes from './server/routes/ai';
 import messageRoutes from './server/routes/messages';
@@ -43,6 +42,15 @@ function assertProductionConfiguration(): void {
     throw new Error(`Missing required production environment variables: ${missing.join(', ')}`);
   }
 }
+
+const catalogLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many catalog requests. Please wait a moment and try again.' },
+  skip: () => process.env.NODE_ENV !== 'production',
+});
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -85,8 +93,8 @@ async function startServer() {
   const hpp = (await import('hpp')).default;
   const mongoSanitize = (await import('express-mongo-sanitize')).default;
 
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  app.use(express.json({ limit: '256kb' }));
+  app.use(express.urlencoded({ extended: true, limit: '64kb' }));
 
   app.use(hpp()); // Prevent HTTP Parameter Pollution
   app.use(mongoSanitize()); // Prevent NoSQL injection (even if using SQL, good for JSON)
@@ -95,6 +103,7 @@ async function startServer() {
 
   app.use(compression());
 
+  app.use('/api/books', catalogLimiter); // Public catalog needs a separate, browser-friendly limit.
   app.use('/api/', speedLimiter); // Slow down repeated requests
   app.use('/api/', limiter); // Apply rate limiting to all API routes
 
@@ -140,7 +149,7 @@ async function startServer() {
       const isSameOrigin = !origin || origin.replace(/^https?:\/\//, '') === host;
 
       if (isSameOrigin || allowed.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin || '*');
+        if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
       } else {
         // Log unauthorized CORS attempt
         if (origin) console.warn(`[CORS Blocked] Unauthorized origin: ${origin} (Host: ${host})`);
@@ -151,7 +160,7 @@ async function startServer() {
     }
 
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,x-admin-security-token');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,Idempotency-Key,x-admin-security-token');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     if (process.env.NODE_ENV === 'production' && process.env.ALLOW_INDEXING !== 'true') {
       res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
@@ -195,28 +204,27 @@ async function startServer() {
   app.use('/api/books', bookRoutes);
   app.use('/api/wishlist', wishlistRoutes);
   app.use('/api/orders', orderRoutes);
-  app.use('/api/sql', sqlRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/ai', aiRoutes);
   app.use('/api/messages', messageRoutes);
 
-  // Ensure schema exists, then seed DB on startup if empty
-  ensureSchema()
-    .then(async () => {
-      await seedIfEmpty();
-      // Pre-warm the database and cache
-      console.log('[Security] Pre-warming database and cache for ultra-fast response...');
-      const prewarm = [
-        query('SELECT genre, COUNT(*)::text AS count FROM books GROUP BY genre'),
-        query('SELECT * FROM books WHERE featured = true LIMIT 8'),
-        query('SELECT * FROM books ORDER BY rating DESC LIMIT 8'),
-        query('SELECT * FROM site_settings WHERE id = \'default\''),
-      ];
-      await Promise.all(prewarm).catch(() => {});
-      console.log('[Security] Cache warmed. System ready at peak speed.');
-      void syncFullAppSnapshot();
-    })
-    .catch((e) => console.error('[db init] failed:', e));
+  // The service must not accept traffic until its schema, seed data, and database connection are ready.
+  // This prevents false-positive health checks and checkout requests against a partially initialized database.
+  try {
+    await ensureSchema();
+    await seedIfEmpty();
+    console.log('[Startup] Pre-warming database and catalog cache...');
+    await Promise.all([
+      query('SELECT genre, COUNT(*)::text AS count FROM books GROUP BY genre'),
+      query('SELECT * FROM books WHERE featured = true LIMIT 8'),
+      query('SELECT * FROM books ORDER BY rating DESC LIMIT 8'),
+      query('SELECT * FROM site_settings WHERE id = \'default\''),
+    ]);
+    console.log('[Startup] Database is ready.');
+  } catch (error) {
+    console.error('[Startup] Database initialization failed; refusing to start.', error);
+    process.exit(1);
+  }
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -263,6 +271,7 @@ async function startServer() {
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    void syncFullAppSnapshot();
   });
 }
 

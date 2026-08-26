@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { adminQuery } from '../db';
+import { adminQuery, pool } from '../db';
 import { requireAdmin } from '../auth';
 import { getCache, setCache, clearCache } from '../cache';
 import { queueFullAppSnapshot } from '../integrations/google';
@@ -188,35 +188,80 @@ router.get('/orders', requireAdmin, async (req, res) => {
 });
 
 router.patch('/orders/:id/status', requireAdmin, async (req, res) => {
+  const { status } = req.body || {};
+  if (!ALLOWED_STATUSES.includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+
+  const client = await pool.connect();
   try {
-    const { status } = req.body || {};
-    if (!ALLOWED_STATUSES.includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' });
+    await client.query('BEGIN');
+    const existing = await client.query<any>('SELECT id, status, items_json FROM orders WHERE id = $1 FOR UPDATE', [req.params.id]);
+    if (existing.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Order not found' });
     }
-    const result = await adminQuery(
-      'UPDATE orders SET status = $1 WHERE id = $2 RETURNING id, status',
-      [status, req.params.id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+
+    const order = existing.rows[0];
+    if (order.status === status) {
+      await client.query('COMMIT');
+      return res.json({ ok: true, order: { id: order.id, status } });
+    }
+    if (order.status === 'cancelled') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Cancelled orders cannot be reopened. Create a new order if fulfilment is required.' });
+    }
+    if (status === 'cancelled') {
+      if (!['pending', 'processing'].includes(order.status)) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Only pending or processing orders can be cancelled.' });
+      }
+      for (const item of order.items_json || []) {
+        const quantity = Math.max(1, Math.floor(Number(item.quantity) || 0));
+        await client.query('UPDATE books SET stock = stock + $1 WHERE id = $2', [quantity, item.id]);
+      }
+    }
+
+    const result = await client.query('UPDATE orders SET status = $1 WHERE id = $2 RETURNING id, status', [status, req.params.id]);
+    await client.query('COMMIT');
     await clearCache('admin:stats');
+    await clearCache('books:');
+    await clearCache('genres');
     queueFullAppSnapshot();
-    res.json({ ok: true, order: result.rows[0] });
-  } catch (e: any) {
-    console.error('admin update order status error', e);
-    res.status(500).json({ error: 'Failed to update order' });
+    return res.json({ ok: true, order: result.rows[0] });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    console.error('admin update order status error', error);
+    return res.status(500).json({ error: 'Failed to update order status' });
+  } finally {
+    client.release();
   }
 });
 
 router.delete('/orders/:id', requireAdmin, async (req, res) => {
+  const client = await pool.connect();
   try {
-    const result = await adminQuery('DELETE FROM orders WHERE id = $1 RETURNING id', [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Order not found' });
+    await client.query('BEGIN');
+    const existing = await client.query<{ id: string; status: string }>('SELECT id, status FROM orders WHERE id = $1 FOR UPDATE', [req.params.id]);
+    if (existing.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    if (existing.rows[0].status !== 'cancelled') {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Cancel an active order before deleting it so stock is restored safely.' });
+    }
+    await client.query('DELETE FROM orders WHERE id = $1', [req.params.id]);
+    await client.query('COMMIT');
     await clearCache('admin:stats');
     queueFullAppSnapshot();
-    res.json({ ok: true });
-  } catch (e: any) {
-    console.error('admin delete order error', e);
-    res.status(500).json({ error: 'Failed to delete order' });
+    return res.json({ ok: true });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    console.error('admin delete order error', error);
+    return res.status(500).json({ error: 'Failed to delete order' });
+  } finally {
+    client.release();
   }
 });
 
